@@ -1,8 +1,9 @@
-import { Component, lazy, Suspense, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import { Component, lazy, Suspense, useEffect, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { agentLook } from '../agents.ts'
 import { officeStateBadge } from '../office-state.ts'
 import { usePolling } from '../polling.ts'
 import { formatCompact, formatDateTime, formatNumber } from '../format.ts'
+import { execTerminal, type TerminalResult } from '../terminal.ts'
 import type { Page } from '../routes.ts'
 import type { ActivitySnapshot, ChannelSnapshot, DashboardSnapshot, OfficeRoom, OfficeSnapshot, OfficeStation, UsageSnapshot } from '../types.ts'
 import { LoadingState, SourceStatus } from '../ui.tsx'
@@ -211,6 +212,34 @@ export function Office({ dashboard, dashboardPending = false, onNavigate }: { da
     setPanel(next)
     try { window.localStorage.setItem('mc.officePanel', next ?? 'closed') } catch { /* storage may be blocked */ }
   }
+  const [terminalOpen, setTerminalOpen] = useState(() => {
+    try { return typeof window === 'undefined' ? false : window.localStorage.getItem('mc.officeTerminal') === 'true' }
+    catch { return false }
+  })
+  const [terminalCmd, setTerminalCmd] = useState('')
+  const [terminalOut, setTerminalOut] = useState('')
+  const [terminalErr, setTerminalErr] = useState<string | undefined>()
+  const [terminalBusy, setTerminalBusy] = useState(false)
+  const toggleTerminal = () => {
+    const next = !terminalOpen
+    setTerminalOpen(next)
+    try { window.localStorage.setItem('mc.officeTerminal', String(next)) } catch { /* storage may be blocked */ }
+  }
+  const clearTerminal = () => { setTerminalOut(''); setTerminalErr(undefined) }
+  const runTerminal = async (event: FormEvent) => {
+    event.preventDefault()
+    setTerminalErr(undefined)
+    if (terminalBusy) return
+    setTerminalBusy(true)
+    try {
+      const result: TerminalResult = await execTerminal(terminalCmd)
+      if (result.ok) {
+        setTerminalOut(`${result.stdout}${result.stderr ? `\nstderr:\n${result.stderr}` : ''}\n[exit ${result.code} · ${result.durationMs} ms]`)
+      } else setTerminalErr(result.error)
+    } catch (error) {
+      setTerminalErr(error instanceof Error ? error.message : 'Request failed.')
+    } finally { setTerminalBusy(false) }
+  }
   const chooseView = (next: OfficeView) => {
     setView(next)
     try { window.localStorage.setItem('mc.officeView', next) } catch { /* storage may be blocked */ }
@@ -240,6 +269,7 @@ export function Office({ dashboard, dashboardPending = false, onNavigate }: { da
       <div className="view-toggle" role="group" aria-label="Office view">{(['2d', '3d'] as const).map((item) => <button type="button" key={item} className={view === item ? 'active' : ''} aria-pressed={view === item} onClick={() => chooseView(item)} disabled={item === '3d' && !webgl} title={item === '3d' && !webgl ? 'WebGL is not available in this browser' : undefined}>{item.toUpperCase()}</button>)}</div>
       {(['tasks', 'calendar', 'usage'] as const).map((item) => <button type="button" key={item} className={`panel-toggle${overlay === item ? ' active' : ''}`} aria-pressed={overlay === item} onClick={() => setOverlay(overlay === item ? undefined : item)}>{item === 'tasks' ? '▦ Tasks' : item === 'calendar' ? '◷ Calendar' : '◔ Tokens'}</button>)}
       <button type="button" className={`panel-toggle${panel ? ' active' : ''}`} aria-expanded={Boolean(panel)} aria-controls="office-panel" onClick={() => choosePanel(panel ? undefined : 'Crew')}>◧ Panel</button>
+      <button type="button" className={`panel-toggle${terminalOpen ? ' active' : ''}`} aria-expanded={terminalOpen} aria-controls="office-terminal" onClick={toggleTerminal}>⬭ Terminal</button>
     </div>
     <div className="office-canvas">
       {show3d ? <SceneBoundary fallback={<section className="empty-state"><h2>3D view unavailable</h2><p>The 3D office could not start on this device. Switch back to 2D.</p></section>}><Suspense fallback={<LoadingState message="Loading the 3D office..."/>}><Office3D stations={office?.stations ?? []} onSelect={select3d}/></Suspense></SceneBoundary> : <>{view === '3d' && !webgl && <p className="muted office-note">3D needs WebGL, which this browser does not provide. Showing 2D.</p>}<div className="room-tabs" role="tablist" aria-label="Office rooms">{ROOMS.map((item) => <button role="tab" aria-selected={room === item} className={room === item ? 'active' : ''} onClick={() => setChosenRoom(item)} key={item}>{item} <span className="room-count">{counts[item]}</span></button>)}</div>
@@ -278,5 +308,21 @@ export function Office({ dashboard, dashboardPending = false, onNavigate }: { da
     </aside>}
     {overlay && <OfficeOverlay kind={overlay} onClose={() => setOverlay(undefined)} onNavigate={onNavigate}/>}
     {selected && <OfficeDetail station={selected} onClose={closeDetail}/>}
+    {terminalOpen && (
+      <section className="office-overlay" id="office-terminal" role="dialog" aria-modal="false" aria-labelledby="terminal-title" onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); setTerminalOpen(false) } }}>
+        <header className="office-overlay-head"><h2 id="terminal-title">Terminal</h2><button type="button" className="icon-button" onClick={toggleTerminal} aria-label="Close terminal">✕</button></header>
+        <div className="office-overlay-body">
+          <p className="eyebrow">TERMINAL</p>
+          <p className="small-note">Read-only commands on the server. One command at a time, 8 s limit.</p>
+          <form onSubmit={runTerminal}>
+            <input className="text-input" value={terminalCmd} onChange={(event) => setTerminalCmd(event.target.value)} placeholder="e.g. node --version" />
+            <button type="submit" className="primary-button" disabled={terminalBusy}>{terminalBusy ? 'Running…' : 'Kirim'}</button>
+            <button type="button" className="refresh-button" onClick={clearTerminal}>Hapus</button>
+          </form>
+          {terminalErr && <p className="form-error" role="alert">{terminalErr}</p>}
+          {terminalOut && <pre className="terminal-out">{terminalOut}</pre>}
+        </div>
+      </section>
+    )}
   </section>
 }

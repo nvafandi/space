@@ -745,6 +745,7 @@ aside.office-panel { background: color-mix(in srgb, var(--surface) 96%, transpar
 .usage-bars b { font-weight: 500; text-align: right; }
 .usage-bars small { color: var(--text-muted); text-align: right; }
 .office-panel .usage-sections { grid-template-columns: 1fr; }
+.terminal-out { background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--border); border-radius: 6px; font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; line-height: 1.5; margin: 0 0 10px; padding: 10px; white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow: auto; }
 .usage-page { margin-top: 20px; }
 .usage-page .usage-card, .office-overlay .usage-card { margin-bottom: 0; }
 

@@ -11,6 +11,7 @@ import { collectMemory } from './memory.js'
 import { clearSnapshotCache, getActivity, getCalendar, getChannels, getCommandLog, getDashboard, getKnowledge, getLogs, getOffice, getSnapshot, getTaskBoard, getTaskDetail, getUsage } from './mission-control.js'
 import { installAgentNames } from './agent-names.js'
 import { installLocalTasks } from './local-tasks.js'
+import { installTerminal } from './terminal.js'
 
 const HOST = '127.0.0.1'
 // MISSION_CONTROL_PORT is the pre-rename name, still honoured.
@@ -39,6 +40,9 @@ installAgentNames(app, undefined, clearSnapshotCache)
 // Locally assigned tasks: a testing override of office state. Behind the access-code lock
 // like every other write; each saved task drops the shared snapshot cache.
 installLocalTasks(app, clearSnapshotCache)
+// Read-only server commands, behind the access-code lock (declared after installAccess) and
+// the x-space-request header. Never a shell; allowlisted commands only.
+installTerminal(app, clearSnapshotCache)
 
 // `?fresh=1` (manual refresh) bypasses the 10s cache for anything older than 2s.
 const FRESH_WINDOW_MS = 8_000
