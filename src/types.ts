@@ -5,6 +5,8 @@ export interface RuntimeSnapshot {
   /** Every Hermes profile is an agent; `gateway` comes from `hermes profile list`. */
   profiles: Source<{ name: string; model: string; gateway: GatewayState }[]>
   openCode: Source<string>
+  /** Every agent defined in the shared OpenCode install (agents/*.md). */
+  openCodeAgents?: { id: string; role: string; mode?: string }[]
   fetchedAt: string
 }
 export interface Task { title: string; status: string; id?: string; assignee?: string; priority?: number; board?: string; private?: boolean }
@@ -38,6 +40,10 @@ export interface OfficeStation {
   seat: number
   provenance: string
   freshness: string
+  /** Folder agent behind the Folder tab: the profile folder, or the shared OpenCode install. */
+  folderAgent?: string
+  /** Memory agent behind the Memory tab: the profile, or the shared OpenCode install. */
+  memoryAgent?: string
 }
 export interface OfficeSummary { declared: number; active: number; idle: number; offline: number; unknown: number; gatewaysReachable: number; gatewaysDeclared: number }
 export interface OfficeSnapshot { stations: OfficeStation[]; summary: OfficeSummary; fetchedAt: string }

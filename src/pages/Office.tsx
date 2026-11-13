@@ -82,6 +82,9 @@ export function OfficeDetail({ station, onClose }: { station: OfficeStation; onC
   useEffect(() => { closeRef.current?.focus() }, [])
   const badge = officeStateBadge(station.state)
   const profile = station.id
+  // Every OpenCode agent shares the single install, so its folder and memory are the install's.
+  const folderAgent = station.folderAgent ?? station.id
+  const memoryAgent = station.memoryAgent ?? station.id
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key === 'Escape') { event.stopPropagation(); onClose(); return }
     if (event.key !== 'Tab') return
@@ -105,8 +108,8 @@ export function OfficeDetail({ station, onClose }: { station: OfficeStation; onC
           {station.privacy === 'unlocked' && <RelockBar agent={station.id} minutes={15}/>}
           {station.activity && <p className="detail-activity">{station.activity}</p>}
           <dl className="office-detail-grid"><div><dt>Agent type</dt><dd>{station.role}</dd></div>{station.role !== 'OpenCode' && <AgentTokens agent={station.id}/>}<div><dt>Current room</dt><dd>{station.room} / {station.roomPosition}</dd></div><div><dt>Current task</dt><dd>{station.currentTask}</dd></div><div><dt>Recent activity</dt><dd>{station.recentActivity}</dd></div><div><dt>Source / provenance</dt><dd>{station.provenance}</dd></div><div><dt>Freshness</dt><dd>{station.freshness}</dd></div></dl></>}
-        {tab === 'Folder' && profile && <AgentFolder profile={profile}/>}
-        {tab === 'Memory' && profile && <AgentMemoryView profile={profile}/>}
+        {tab === 'Folder' && profile && <AgentFolder profile={folderAgent}/>}
+        {tab === 'Memory' && profile && <AgentMemoryView profile={memoryAgent}/>}
       </div>
     </section>
   </div>

@@ -1,5 +1,6 @@
 import { execFile as execFileCallback } from 'node:child_process'
 import { promisify } from 'node:util'
+import { discoverOpenCodeAgents, type OpenCodeAgent } from './opencode-agents.js'
 
 const execFile = promisify(execFileCallback)
 const CACHE_MS = 10_000
@@ -21,6 +22,8 @@ export interface Source<T> {
 export interface RuntimeSnapshot {
   profiles: Source<Profile[]>
   openCode: Source<string>
+  /** Every agent defined in the shared OpenCode install (agents/*.md); read from disk, never from a CLI. */
+  openCodeAgents?: OpenCodeAgent[]
   fetchedAt: string
 }
 export interface Task { title: string; status: string; id?: string; assignee?: string; priority?: number; board?: string; /** Belongs to a locked agent (profile lock): the title is withheld. */ private?: boolean }
@@ -56,6 +59,10 @@ export interface OfficeStation {
   seat: number
   provenance: string
   freshness: string
+  /** Folder agent behind the Folder tab: the profile folder, or the shared OpenCode install. */
+  folderAgent?: string
+  /** Memory agent behind the Memory tab: the profile, or the shared OpenCode install. */
+  memoryAgent?: string
 }
 export type ActivityKind = 'chat' | 'cron' | 'tools' | 'thinking'
 export interface AgentActivity { profile: string; availability: Availability; active: boolean; kind?: ActivityKind; label?: string; lastSeen?: string; mentionsOpenCode: boolean }
@@ -508,7 +515,8 @@ export async function collectSnapshot(run: Run = systemRun): Promise<RuntimeSnap
     read(run, 'hermes', ['profile', 'list'], parseProfiles, []),
     read(run, 'opencode', ['--version'], (value) => value.trim().split('\n').pop()?.trim() || 'Unknown', 'Unknown'),
   ])
-  return { profiles, openCode, fetchedAt: new Date().toISOString() }
+  const openCodeAgents = discoverOpenCodeAgents() // files only: no command is run
+  return { profiles, openCode, openCodeAgents, fetchedAt: new Date().toISOString() }
 }
 
 /** Board slugs passed to `hermes kanban --board`: Hermes' own slug rule, never an option. */
@@ -819,13 +827,15 @@ export async function collectAgentActivity(profiles: readonly string[], run: Run
 // ---------------------------------------------------------------------------
 // Office
 
-/** One office station per agent: every Hermes profile, plus OpenCode when it is installed. */
+/** One office station per agent: every Hermes profile, plus every agent defined in the OpenCode install. */
 interface AgentSpec { id: string; role: string; profile?: string; gateway?: GatewayState; aliases: string[] }
 
 export function agentRoster(runtime: RuntimeSnapshot): AgentSpec[] {
   const profiles = runtime.profiles.availability === 'available' ? runtime.profiles.data : []
   const agents: AgentSpec[] = profiles.filter((profile) => PROFILE_NAME.test(profile.name)).map((profile) => ({ id: profile.name, role: 'Hermes profile', profile: profile.name, gateway: profile.gateway, aliases: [profile.name.toLowerCase()] }))
-  if (runtime.openCode.availability === 'available' && !agents.some((agent) => agent.id === 'opencode')) agents.push({ id: 'opencode', role: 'OpenCode', aliases: ['opencode', 'open-code'] })
+  const openCodeAgents = runtime.openCodeAgents ?? []
+  if (openCodeAgents.length) agents.push(...openCodeAgents.map((agent) => ({ id: agent.id, role: agent.role || agent.id, aliases: [agent.id, agent.id.toLowerCase()] })))
+  else if (runtime.openCode.availability === 'available' && !agents.some((agent) => agent.id === 'opencode')) agents.push({ id: 'opencode', role: 'OpenCode', aliases: ['opencode', 'open-code'] })
   return agents
 }
 
@@ -873,6 +883,11 @@ function roomForState(state: OfficeState, index: number): Pick<OfficeStation, 'r
   if (state === 'Collaborating') return { room: 'Workspace', roomPosition: 'meeting-area' }
   if (state === 'Working') return { room: 'Workspace', roomPosition: 'assigned-desk' }
   return { room: 'Workspace', roomPosition: 'neutral-presence' }
+}
+
+/** A station card holds one line of role text; an agent description can be a whole sentence. */
+function clipRole(role: string): string {
+  return role.length > 120 ? `${role.slice(0, 120)}…` : role
 }
 
 export function buildOfficeSummary(stations: OfficeStation[], runtime: RuntimeSnapshot): OfficeSummary {
@@ -931,13 +946,15 @@ export function buildOfficeSnapshot(runtime: RuntimeSnapshot, board: TaskBoardSn
     const recentActivity = live.probe
       ? live.probe.active ? `${live.probe.label ?? 'Active'}${live.probe.lastSeen ? ` (last log ${live.probe.lastSeen})` : ''}` : `No activity in the last ${ACTIVITY_WINDOW}`
       : activity.sessions.availability === 'unavailable' ? 'Not Available' : collaboration === 'Collaborating' ? 'Attributed active collaboration session' : 'No attributed recent activity'
-    const runtimeProvenance = agent.profile ? `Gateway ${gateway ?? 'Unknown'} (hermes profile list)` : 'OpenCode version availability is not a state signal'
+    const runtimeProvenance = agent.profile ? `Gateway ${gateway ?? 'Unknown'} (hermes profile list)` : 'OpenCode agent; version availability is not a state signal'
     const managedIdle = state === 'Idle' ? '; Space managed-idle placement policy (not agent-reported presence)' : ''
     const liveProvenance = options.agentActivity ? `; live activity (${agent.profile ? `hermes -p ${agent.profile} logs/sessions` : 'agent logs mentioning OpenCode'}, last ${ACTIVITY_WINDOW}): ${!agentActivity || !live.known ? 'unavailable' : live.state !== 'Unknown' ? live.probe?.kind ?? 'active' : 'none'}` : ''
+    // Every OpenCode agent shares the single install: its folder and memory are the install's.
+    const sharedAgent = agent.profile ?? 'opencode'
     return {
       id: agent.id,
       name: agent.id,
-      role: agent.role,
+      role: clipRole(agent.role),
       ...roomForState(state, index),
       seat: index + 1,
       state,
@@ -946,6 +963,8 @@ export function buildOfficeSnapshot(runtime: RuntimeSnapshot, board: TaskBoardSn
       activity: activityLabel,
       provenance: `${runtimeProvenance}; explicit state records: ${overlay ? 'fresh declared state' : 'none'}; Kanban: ${board.tasks.availability}${freshBoard ? ' fresh' : ' stale or unavailable'}; activity: ${activity.sessions.availability}${freshActivity ? ' fresh' : ' stale or unavailable'}${liveProvenance}${managedIdle}`,
       freshness: `Runtime ${runtime.fetchedAt}; Kanban ${board.fetchedAt}; activity ${activity.fetchedAt}${agentActivity ? `; live activity ${agentActivity.fetchedAt}` : ''}`,
+      folderAgent: sharedAgent,
+      memoryAgent: sharedAgent,
     }
   })
   return { stations, summary: buildOfficeSummary(stations, runtime), fetchedAt }
