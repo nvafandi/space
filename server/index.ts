@@ -12,7 +12,7 @@ import { getActivity, getCalendar, getChannels, getCommandLog, getDashboard, get
 
 const HOST = '127.0.0.1'
 // MISSION_CONTROL_PORT is the pre-rename name, still honoured.
-const PORT = Number(process.env.RUANG_PORT ?? process.env.MISSION_CONTROL_PORT) || 3001
+const PORT = Number(process.env.SPACE_PORT ?? process.env.MISSION_CONTROL_PORT) || 3001
 // The built UI sits next to the server: ../dist from server/*.ts (development, npm start)
 // and ../../dist from build/server/*.js (the installed package).
 const distDirectory = [new URL('../dist', import.meta.url), new URL('../../dist', import.meta.url)].map((url) => fileURLToPath(url)).find((path) => existsSync(join(path, 'index.html'))) ?? fileURLToPath(new URL('../dist', import.meta.url))
@@ -120,8 +120,8 @@ if (existsSync(distDirectory)) {
 
 app.use((error: unknown, _request: Request, response: Response, _next: NextFunction) => {
   void _next
-  console.error('Ruang request failed:', error instanceof Error ? error.message : error)
+  console.error('Space request failed:', error instanceof Error ? error.message : error)
   response.status(500).json({ error: 'Internal error' })
 })
 
-app.listen(PORT, HOST, () => console.log(`Ruang listening on http://${HOST}:${PORT}${existsSync(distDirectory) ? ' (serving built UI)' : ' (API only; run the Vite dev server for the UI)'}`))
+app.listen(PORT, HOST, () => console.log(`Space listening on http://${HOST}:${PORT}${existsSync(distDirectory) ? ' (serving built UI)' : ' (API only; run the Vite dev server for the UI)'}`))

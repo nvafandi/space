@@ -169,7 +169,7 @@ describe('agent folders', () => {
   it('explains permission and missing-file errors instead of failing generically', () => {
     const denied = fsError(Object.assign(new Error('x'), { code: 'EACCES' }), 'the agent folder', '/home/ubuntu/.hermes/profiles/coder')
     expect(denied.status).toBe(403)
-    expect(denied.message).toMatch(/^Permission denied: Ruang runs as ".+" and cannot read the agent folder\./)
+    expect(denied.message).toMatch(/^Permission denied: Space runs as ".+" and cannot read the agent folder\./)
     expect(denied.message).toContain('/home/ubuntu/.hermes/profiles/coder')
     expect(fsError(Object.assign(new Error('x'), { code: 'ENOENT' }), '"notes.md"')).toMatchObject({ status: 404, message: '"notes.md" was not found.' })
     expect(fsError(Object.assign(new Error('x'), { code: 'EIO' }), 'the agent folder')).toMatchObject({ status: 500, message: 'Could not read the agent folder (EIO).' })

@@ -6,15 +6,15 @@ import express, { type Express, type NextFunction, type Request, type Response }
 
 // Optional access code. Off by default; when it is set, every /api route except the health
 // check and the access routes themselves needs a session cookie, which the server hands out
-// after the code is entered. Only a scrypt hash of the code is stored, in Ruang's own config
+// after the code is entered. Only a scrypt hash of the code is stored, in Space's own config
 // (never in Hermes), with a random secret that signs sessions: changing or removing the code
-// replaces the secret, which ends every session. Forgotten code: `ruang access-code off`.
+// replaces the secret, which ends every session. Forgotten code: `space access-code off`.
 
 export const MIN_CODE_LENGTH = 12
 export const MAX_CODE_LENGTH = 128
 export const SESSION_MS = 12 * 60 * 60 * 1000
 export const REMEMBER_MS = 7 * 24 * 60 * 60 * 1000
-const COOKIE = 'ruang_session'
+const COOKIE = 'space_session'
 const FREE_ATTEMPTS = 5
 const MAX_WAIT_MS = 5 * 60 * 1000
 
@@ -23,18 +23,18 @@ export class AccessError extends Error {
 }
 
 interface AccessFile { version: 1; salt: string; hash: string; secret: string; createdAt: string }
-/** `broken` means the file exists but cannot be read: Ruang stays locked (fail closed). */
+/** `broken` means the file exists but cannot be read: Space stays locked (fail closed). */
 type AccessState = { enabled: false } | { enabled: true; file?: AccessFile; broken?: true }
 
 export function accessConfigDir(env: NodeJS.ProcessEnv = process.env): string {
-  return env.RUANG_CONFIG_DIR || join(env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'ruang')
+  return env.SPACE_CONFIG_DIR || join(env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'space')
 }
 
-/** A random code like ruang-7KQ4-M2XD-9PWT-H6RA (80 bits; no 0/O/1/I to misread). */
+/** A random code like space-7KQ4-M2XD-9PWT-H6RA (80 bits; no 0/O/1/I to misread). */
 export function generateCode(): string {
   const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
   const groups = Array.from({ length: 4 }, () => Array.from({ length: 4 }, () => alphabet[randomInt(alphabet.length)]).join(''))
-  return `ruang-${groups.join('-')}`
+  return `space-${groups.join('-')}`
 }
 
 /** The code as stored and compared: surrounding whitespace removed, length and characters checked. */
@@ -63,7 +63,7 @@ export class AccessStore {
 
   get path(): string { return join(this.dir, 'access.json') }
 
-  /** Re-read whenever the file changes, so `ruang access-code` takes effect without a restart. */
+  /** Re-read whenever the file changes, so `space access-code` takes effect without a restart. */
   async state(): Promise<AccessState> {
     let key: string
     try {
@@ -193,9 +193,9 @@ export function installAccess(app: Express, store = new AccessStore(), throttle 
   const body = (request: Request) => (request.body && typeof request.body === 'object' ? request.body as Record<string, unknown> : {})
 
   // Changes must come from this page: a custom header cannot be sent cross-site without a CORS
-  // preflight, which Ruang never answers, and the JSON parser ignores form posts.
+  // preflight, which Space never answers, and the JSON parser ignores form posts.
   app.use('/api/access', express.json({ limit: '4kb' }), (request: Request, response: Response, next: NextFunction) => {
-    if (request.method === 'POST' && request.get('x-ruang-request') !== '1') { response.status(403).json({ error: 'Forbidden.' }); return }
+    if (request.method === 'POST' && request.get('x-space-request') !== '1') { response.status(403).json({ error: 'Forbidden.' }); return }
     next()
   })
   app.get('/api/access', route(status))
@@ -217,7 +217,7 @@ export function installAccess(app: Express, store = new AccessStore(), throttle 
     const { code, currentCode, remember } = body(request)
     const next = normalizeCode(code)
     if ((await store.state()).enabled) {
-      if (!(await unlocked(request))) throw new AccessError('Ruang is locked. Enter the access code.', 401)
+      if (!(await unlocked(request))) throw new AccessError('Space is locked. Enter the access code.', 401)
       await checkCode(request, currentCode)
     }
     const file = await store.set(next)
@@ -226,7 +226,7 @@ export function installAccess(app: Express, store = new AccessStore(), throttle 
   }))
   app.post('/api/access/disable', route(async (request, response) => {
     if (!(await store.state()).enabled) return status(request)
-    if (!(await unlocked(request))) throw new AccessError('Ruang is locked. Enter the access code.', 401)
+    if (!(await unlocked(request))) throw new AccessError('Space is locked. Enter the access code.', 401)
     await checkCode(request, body(request).currentCode)
     await store.clear()
     setSession(request, response, undefined)
@@ -235,6 +235,6 @@ export function installAccess(app: Express, store = new AccessStore(), throttle 
   app.use('/api', async (request: Request, response: Response, next: NextFunction) => {
     if (request.path === '/health' || request.path === '/access' || request.path.startsWith('/access/')) { next(); return }
     if (await unlocked(request)) { next(); return }
-    response.status(401).json({ error: 'Ruang is locked. Enter the access code.', locked: true })
+    response.status(401).json({ error: 'Space is locked. Enter the access code.', locked: true })
   })
 }

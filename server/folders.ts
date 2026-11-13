@@ -39,9 +39,9 @@ export class FolderError extends Error {
   constructor(message: string, readonly status: 400 | 403 | 404 | 423 | 500) { super(message) }
 }
 
-/** Mirrors hermes_constants.get_default_hermes_root(). RUANG_HERMES_ROOT (or the older MISSION_CONTROL_HERMES_ROOT) overrides it. */
+/** Mirrors hermes_constants.get_default_hermes_root(). SPACE_HERMES_ROOT (or the older MISSION_CONTROL_HERMES_ROOT) overrides it. */
 export function hermesRoot(env: NodeJS.ProcessEnv = process.env, home = homedir()): string {
-  const override = env.RUANG_HERMES_ROOT ?? env.MISSION_CONTROL_HERMES_ROOT
+  const override = env.SPACE_HERMES_ROOT ?? env.MISSION_CONTROL_HERMES_ROOT
   if (override) return path.resolve(override)
   const native = path.join(home, `.hermes${env.HERMES_DATA_DIR_SUFFIX ?? ''}`)
   const configured = env.HERMES_HOME?.trim()
@@ -70,7 +70,7 @@ function processUser(): string {
 export function fsError(error: unknown, what: string, where?: string): FolderError {
   const code = (error as NodeJS.ErrnoException | undefined)?.code
   const user = processUser()
-  if (code === 'EACCES' || code === 'EPERM') return new FolderError(`Permission denied: Ruang runs as "${user}" and cannot read ${what}. Run Ruang as the user that owns this Hermes profile, or grant read access, for example: sudo setfacl -R -m u:${user}:rX ${where ?? '<folder>'}`, 403)
+  if (code === 'EACCES' || code === 'EPERM') return new FolderError(`Permission denied: Space runs as "${user}" and cannot read ${what}. Run Space as the user that owns this Hermes profile, or grant read access, for example: sudo setfacl -R -m u:${user}:rX ${where ?? '<folder>'}`, 403)
   if (code === 'ENOENT' || code === 'ENOTDIR') return new FolderError(`${what[0].toUpperCase()}${what.slice(1)} was not found.`, 404)
   if (code === 'ELOOP') return new FolderError(`${what[0].toUpperCase()}${what.slice(1)} is a symlink loop.`, 400)
   return new FolderError(`Could not read ${what} (${code ?? 'unknown error'}).`, 500)
@@ -225,7 +225,7 @@ async function firstDirectory(candidates: string[]): Promise<{ directory: string
  * Resolves every agent to its own folder:
  * - Hermes profile <name> → <root>/profiles/<name>; `default` → <root>/profiles/default, or the
  *   Hermes root itself when that folder does not exist (stock Hermes layout);
- * - OpenCode → ~/.opencode, then ~/.config/opencode (RUANG_OPENCODE_DIR, or the older MISSION_CONTROL_OPENCODE_DIR, overrides).
+ * - OpenCode → ~/.opencode, then ~/.config/opencode (SPACE_OPENCODE_DIR, or the older MISSION_CONTROL_OPENCODE_DIR, overrides).
  * A non-default agent that resolves to the Hermes root, or to another agent's folder, is not
  * opened: it would show files that are not its own.
  */
@@ -237,7 +237,7 @@ export async function resolveAgentFolders(profiles: string[], env: NodeJS.Proces
   const names = [...new Set(listed.length ? listed : ['default'])]
   const specs = [
     ...names.map((profile) => ({ profile, candidates: profile === 'default' ? [path.join(root, 'profiles', 'default'), root] : [path.join(root, 'profiles', profile)] })),
-    { profile: 'opencode', candidates: (env.RUANG_OPENCODE_DIR ?? env.MISSION_CONTROL_OPENCODE_DIR) ? [path.resolve((env.RUANG_OPENCODE_DIR ?? env.MISSION_CONTROL_OPENCODE_DIR)!)] : [path.join(home, '.opencode'), path.join(home, '.config', 'opencode')] },
+    { profile: 'opencode', candidates: (env.SPACE_OPENCODE_DIR ?? env.MISSION_CONTROL_OPENCODE_DIR) ? [path.resolve((env.SPACE_OPENCODE_DIR ?? env.MISSION_CONTROL_OPENCODE_DIR)!)] : [path.join(home, '.opencode'), path.join(home, '.config', 'opencode')] },
   ]
   const realRoot = await realpath(root).catch(() => root)
   const claimed = new Map<string, string>()

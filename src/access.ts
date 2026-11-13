@@ -3,19 +3,19 @@
 export interface AccessStatus { enabled: boolean; unlocked: boolean; since?: string; minLength: number; rememberDays: number }
 
 /** Fired when any API read answers "locked", so the app shows the unlock screen again. */
-export const LOCKED_EVENT = 'ruang:locked'
+export const LOCKED_EVENT = 'space:locked'
 
 export type AccessResult = { ok: true; status: AccessStatus } | { ok: false; message: string }
 
 /** POSTs to an access route. The custom header marks the request as coming from this page. */
 export async function accessRequest(path: 'unlock' | 'lock' | 'code' | 'disable', body: Record<string, unknown> = {}, request: typeof fetch = fetch): Promise<AccessResult> {
   try {
-    const response = await request(`/api/access/${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-ruang-request': '1' }, body: JSON.stringify(body), credentials: 'same-origin' })
+    const response = await request(`/api/access/${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-space-request': '1' }, body: JSON.stringify(body), credentials: 'same-origin' })
     const data = await response.json().catch(() => undefined) as (AccessStatus & { error?: string }) | undefined
-    if (!response.ok || !data) return { ok: false, message: data?.error ?? `The Ruang server answered HTTP ${response.status}.` }
+    if (!response.ok || !data) return { ok: false, message: data?.error ?? `The Space server answered HTTP ${response.status}.` }
     return { ok: true, status: data }
   } catch {
-    return { ok: false, message: 'The Ruang server could not be reached.' }
+    return { ok: false, message: 'The Space server could not be reached.' }
   }
 }
 
@@ -28,27 +28,27 @@ export async function loadAccess(request: typeof fetch = fetch): Promise<AccessS
   }
 }
 
-/** A random code like ruang-7KQ4-M2XD-9PWT-H6RA (80 bits; no 0/O/1/I to misread). */
+/** A random code like space-7KQ4-M2XD-9PWT-H6RA (80 bits; no 0/O/1/I to misread). */
 export function generateCode(random: (values: Uint32Array) => Uint32Array = (values) => crypto.getRandomValues(values)): string {
   const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
   const values = random(new Uint32Array(16))
   const characters = Array.from(values, (value) => alphabet[value % alphabet.length])
-  return `ruang-${[0, 4, 8, 12].map((start) => characters.slice(start, start + 4).join('')).join('-')}`
+  return `space-${[0, 4, 8, 12].map((start) => characters.slice(start, start + 4).join('')).join('-')}`
 }
 
 export function codeFileText(code: string, origin: string, createdAt = new Date()): string {
   return [
-    'Ruang access code',
+    'Space access code',
     '',
     `  ${code}`,
     '',
     `For: ${origin}`,
     `Created: ${createdAt.toISOString()}`,
     '',
-    'Keep this file somewhere safe. Ruang has no password reset.',
-    'Lost the code? On the machine that runs Ruang, run:',
-    '  ruang access-code off   (remove it, then set a new one in Settings)',
-    '  ruang access-code new   (print a new random code)',
+    'Keep this file somewhere safe. Space has no password reset.',
+    'Lost the code? On the machine that runs Space, run:',
+    '  space access-code off   (remove it, then set a new one in Settings)',
+    '  space access-code new   (print a new random code)',
     '',
   ].join('\n')
 }
@@ -57,7 +57,7 @@ export function downloadCode(code: string): void {
   const url = URL.createObjectURL(new Blob([codeFileText(code, window.location.origin)], { type: 'text/plain' }))
   const link = document.createElement('a')
   link.href = url
-  link.download = 'ruang-access-code.txt'
+  link.download = 'space-access-code.txt'
   document.body.append(link)
   link.click()
   link.remove()

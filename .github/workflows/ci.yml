@@ -25,6 +25,6 @@ jobs:
       - name: Package installs and starts
         run: |
           npm pack
-          npm install --global --prefix "$RUNNER_TEMP/mc" ./ruang-*.tgz
-          "$RUNNER_TEMP/mc/bin/ruang" --version
+          npm install --global --prefix "$RUNNER_TEMP/mc" ./space-*.tgz
+          "$RUNNER_TEMP/mc/bin/space" --version
           bash -n install.sh

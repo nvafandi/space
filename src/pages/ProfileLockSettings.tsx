@@ -36,7 +36,7 @@ export function ProfileLockSettings() {
       {mode === 'agents' && <LockForm kind="agents" agents={agents} status={status} onDone={finish('Locked agents saved.')} onCancel={() => setMode('idle')}/>}
       {mode === 'pin' && <LockForm kind="pin" agents={agents} status={status} onDone={finish('New PIN saved. Every unlocked agent is locked again.')} onCancel={() => setMode('idle')}/>}
       {mode === 'off' && <LockForm kind="off" agents={agents} status={status} onDone={finish('Profile lock is off. Every agent is visible.')} onCancel={() => setMode('idle')}/>}
-      <p className="small-note">Lost the PIN? On the machine that runs Ruang, run <code>ruang profile-lock off</code>.</p>
+      <p className="small-note">Lost the PIN? On the machine that runs Space, run <code>space profile-lock off</code>.</p>
     </>}
   </section>
 }
@@ -75,7 +75,7 @@ function LockForm({ kind, agents, status, onDone, onCancel }: { kind: 'setup' | 
     {kind === 'setup' ? <>
       <PinInput id="lock-new-pin" value={pin} onChange={setPin} label="New 6-digit PIN" autoFocus/>
       <PinInput id="lock-repeat-pin" value={repeat} onChange={setRepeat} label="Repeat the PIN"/>
-      <p className="small-note">There is no PIN reset in the app. Remember it, or use <code>ruang profile-lock off</code> on the machine.</p>
+      <p className="small-note">There is no PIN reset in the app. Remember it, or use <code>space profile-lock off</code> on the machine.</p>
     </> : <PinInput id="lock-current-pin" value={pin} onChange={setPin} label="Current PIN" autoFocus/>}
     {kind === 'pin' && <>
       <PinInput id="lock-next-pin" value={next} onChange={setNext} label="New 6-digit PIN"/>

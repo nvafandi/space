@@ -13,7 +13,7 @@ let close: () => void
 let store: AccessStore
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'ruang-access-'))
+  dir = await mkdtemp(join(tmpdir(), 'space-access-'))
   store = new AccessStore(dir)
   const app = express()
   installAccess(app, store, new Throttle())
@@ -26,7 +26,7 @@ beforeEach(async () => {
 })
 afterEach(() => close())
 
-const post = (path: string, body: unknown, cookie = '') => fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-ruang-request': '1', ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body) })
+const post = (path: string, body: unknown, cookie = '') => fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-space-request': '1', ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body) })
 const get = (path: string, cookie = '') => fetch(`${base}${path}`, { headers: cookie ? { cookie } : {} })
 const sessionOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? ''
 
@@ -102,7 +102,7 @@ describe('access code', () => {
 
 describe('access code helpers', () => {
   it('generates readable 80-bit codes and validates custom ones', () => {
-    expect(generateCode()).toMatch(/^ruang-([2-9A-HJ-NP-Z]{4}-){3}[2-9A-HJ-NP-Z]{4}$/)
+    expect(generateCode()).toMatch(/^space-([2-9A-HJ-NP-Z]{4}-){3}[2-9A-HJ-NP-Z]{4}$/)
     expect(generateCode()).not.toBe(generateCode())
     expect(normalizeCode('  my long custom code ')).toBe('my long custom code')
     expect(() => normalizeCode('x'.repeat(129))).toThrow()

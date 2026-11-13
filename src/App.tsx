@@ -35,15 +35,15 @@ function Shell({ onRefresh, access, onAccessChange }: { onRefresh: () => void; a
   const health = usePolling<{ apiVersion?: number }>('/api/health', 60_000)
   const serverVersion = health.status === 'ready' ? health.data.apiVersion ?? 0 : health.status === 'failed' && health.httpStatus === 404 ? 0 : undefined
   const versionNotice = serverVersion === undefined || serverVersion === API_VERSION ? undefined
-    : serverVersion < API_VERSION ? 'The Ruang server is running an older version than this page, so newer menus (such as Memory) cannot load. Restart the server: stop it, run npm run build, then npm start (npm run dev restarts by itself).'
-      : 'This page is older than the Ruang server. Reload the page (and run npm run build if you use npm start).'
+    : serverVersion < API_VERSION ? 'The Space server is running an older version than this page, so newer menus (such as Memory) cannot load. Restart the server: stop it, run npm run build, then npm start (npm run dev restarts by itself).'
+      : 'This page is older than the Space server. Reload the page (and run npm run build if you use npm start).'
 
   useEffect(() => {
     const onHashChange = () => setPage(currentPage())
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
-  useEffect(() => { document.title = `${page} · Ruang` }, [page])
+  useEffect(() => { document.title = `${page} · Space` }, [page])
   useEffect(() => {
     if (menuOpen) drawer.current?.querySelector<HTMLElement>('nav a[aria-current="page"], nav a')?.focus()
   }, [menuOpen])

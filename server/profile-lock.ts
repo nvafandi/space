@@ -7,12 +7,12 @@ import { AccessError, accessConfigDir, cookieValue, derive, Throttle } from './a
 // Profile lock: one 6-digit PIN guards the private data of the agents the owner picks (folder,
 // memory, tasks, cron job names, live activity, session titles, logs). Locked agents stay in the
 // office; their private data is withheld by the server until the PIN unlocks that one agent in
-// this browser for UNLOCK_MS. Only a scrypt hash of the PIN is stored, in Ruang's own config.
-// Forgotten PIN: `ruang profile-lock off`.
+// this browser for UNLOCK_MS. Only a scrypt hash of the PIN is stored, in Space's own config.
+// Forgotten PIN: `space profile-lock off`.
 
 export const PIN_LENGTH = 6
 export const UNLOCK_MS = 15 * 60 * 1000
-const COOKIE = 'ruang_profiles'
+const COOKIE = 'space_profiles'
 const AGENT = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/
 
 interface LockFile { version: 1; salt: string; hash: string; secret: string; agents: string[]; createdAt: string }
@@ -182,7 +182,7 @@ export function installProfileLock(app: Express, store = new ProfileLockStore(),
   }
 
   app.use('/api/profile-lock', express.json({ limit: '4kb' }), (request: Request, response: Response, next: NextFunction) => {
-    if (request.method === 'POST' && request.get('x-ruang-request') !== '1') { response.status(403).json({ error: 'Forbidden.' }); return }
+    if (request.method === 'POST' && request.get('x-space-request') !== '1') { response.status(403).json({ error: 'Forbidden.' }); return }
     next()
   })
   app.get('/api/profile-lock', route(status))
@@ -218,7 +218,7 @@ export function installProfileLock(app: Express, store = new ProfileLockStore(),
   app.post('/api/profile-lock/unlock', route(async (request, response) => {
     const { agent, pin } = body(request)
     const state = await store.state()
-    if (!state.enabled || !state.file) throw new AccessError(state.enabled ? 'The profile lock file cannot be read. Run: ruang profile-lock off' : 'Profile lock is not set up.', 409)
+    if (!state.enabled || !state.file) throw new AccessError(state.enabled ? 'The profile lock file cannot be read. Run: space profile-lock off' : 'Profile lock is not set up.', 409)
     if (typeof agent !== 'string' || !state.file.agents.includes(agent)) throw new AccessError('That agent is not locked.', 400)
     await checkPin(request, pin)
     const tokens = currentTokens(request, state.file)

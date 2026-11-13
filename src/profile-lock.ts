@@ -6,19 +6,19 @@ import { useEffect, useState } from 'react'
 export interface ProfileLockStatus { enabled: boolean; agents: string[]; unlocked: string[]; pinLength: number; unlockMinutes: number }
 
 /** Fired after a PIN unlocks or locks an agent, so every view refreshes its data. */
-export const PROFILES_CHANGED = 'ruang:profiles-changed'
+export const PROFILES_CHANGED = 'space:profiles-changed'
 
 export type ProfileLockResult = { ok: true; status: ProfileLockStatus } | { ok: false; message: string }
 
 export async function profileLockRequest(path: 'setup' | 'update' | 'disable' | 'unlock' | 'lock', body: Record<string, unknown> = {}, request: typeof fetch = fetch): Promise<ProfileLockResult> {
   try {
-    const response = await request(`/api/profile-lock/${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-ruang-request': '1' }, body: JSON.stringify(body), credentials: 'same-origin' })
+    const response = await request(`/api/profile-lock/${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-space-request': '1' }, body: JSON.stringify(body), credentials: 'same-origin' })
     const data = await response.json().catch(() => undefined) as (ProfileLockStatus & { error?: string }) | undefined
-    if (!response.ok || !data) return { ok: false, message: data?.error ?? `The Ruang server answered HTTP ${response.status}.` }
+    if (!response.ok || !data) return { ok: false, message: data?.error ?? `The Space server answered HTTP ${response.status}.` }
     if (path === 'unlock' || path === 'lock' || path === 'update' || path === 'disable') window.dispatchEvent(new Event(PROFILES_CHANGED))
     return { ok: true, status: data }
   } catch {
-    return { ok: false, message: 'The Ruang server could not be reached.' }
+    return { ok: false, message: 'The Space server could not be reached.' }
   }
 }
 

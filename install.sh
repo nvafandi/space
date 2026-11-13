@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Space (3D Virtual Office) installer for macOS, Linux and WSL2.
 #
-#   curl -fsSL https://raw.githubusercontent.com/yugienugraha/ruang/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/nvafandi/space/main/install.sh | bash
 #
-# Installs the latest release into ~/.local/share/ruang and a `ruang` command into
+# Installs the latest release into ~/.local/share/space and a `space` command into
 # ~/.local/bin. Nothing is installed system-wide and sudo is never used. If no
-# suitable Node.js (20+) is found, a private copy is downloaded for Ruang only.
+# suitable Node.js (20+) is found, a private copy is downloaded for Space only.
 # Run it again to update. Options (pass them after `bash -s --` when piping):
 #
 #   --service        also run it as a systemd user service (Linux)
@@ -15,18 +15,18 @@
 #   --uninstall      remove it, its service and its private Node.js
 #   -h, --help       show this help
 #
-# Environment: RUANG_HOME (install folder), RUANG_BIN (command folder).
+# Environment: SPACE_HOME (install folder), SPACE_BIN (command folder).
 
 set -euo pipefail
 
-REPO="yugienugraha/ruang"
-PACKAGE="ruang"
-COMMAND="ruang"
+REPO="nvafandi/space"
+PACKAGE="space"
+COMMAND="space"
 NODE_MAJOR_MIN=20
 NODE_MAJOR_PRIVATE=22
-INSTALL_HOME="${RUANG_HOME:-$HOME/.local/share/ruang}"
-BIN_DIR="${RUANG_BIN:-$HOME/.local/bin}"
-SERVICE_NAME="ruang"
+INSTALL_HOME="${SPACE_HOME:-$HOME/.local/share/space}"
+BIN_DIR="${SPACE_BIN:-$HOME/.local/bin}"
+SERVICE_NAME="space"
 SERVICE_FILE="$HOME/.config/systemd/user/$SERVICE_NAME.service"
 WORK=""
 export NPM_CONFIG_UPDATE_NOTIFIER=false NPM_CONFIG_FUND=false
@@ -40,7 +40,7 @@ usage() {
   cat <<'HELP'
 Space · 3D Virtual Office installer (macOS, Linux, WSL2)
 
-  curl -fsSL https://raw.githubusercontent.com/yugienugraha/ruang/main/install.sh | bash
+  curl -fsSL https://raw.githubusercontent.com/nvafandi/space/main/install.sh | bash
   curl -fsSL .../install.sh | bash -s -- --service
 
 Options:
@@ -51,7 +51,7 @@ Options:
   --uninstall      remove it, its service and its private Node.js
   -h, --help       show this help
 
-Environment: RUANG_HOME (install folder), RUANG_BIN (command folder).
+Environment: SPACE_HOME (install folder), SPACE_BIN (command folder).
 HELP
 }
 
@@ -89,7 +89,7 @@ ensure_node() {
     *) fail "Unsupported CPU $(uname -m) for the bundled Node.js; install Node.js $NODE_MAJOR_MIN+ yourself and rerun." ;;
   esac
 
-  info "Node.js $NODE_MAJOR_MIN+ not found; downloading a private Node.js $NODE_MAJOR_PRIVATE for Ruang..." >&2
+  info "Node.js $NODE_MAJOR_MIN+ not found; downloading a private Node.js $NODE_MAJOR_PRIVATE for Space..." >&2
   local base="https://nodejs.org/dist/latest-v$NODE_MAJOR_PRIVATE.x"
   local work sums file
   work="$(mktemp -d)"
@@ -156,7 +156,7 @@ write_launcher() {
   mkdir -p "$BIN_DIR"
   cat > "$BIN_DIR/$COMMAND" <<LAUNCHER
 #!/bin/sh
-# Installed by the Ruang installer; rerun the installer to update.
+# Installed by the Space installer; rerun the installer to update.
 exec "$node_bin" "$INSTALL_HOME/app/lib/node_modules/$PACKAGE/bin/$COMMAND.js" "\$@"
 LAUNCHER
   chmod +x "$BIN_DIR/$COMMAND"
@@ -189,10 +189,10 @@ UNIT
   info "To keep it running after you log out: loginctl enable-linger $USER"
 }
 
-# Removes installs made under the project's previous names (Mission Control, PT AI Maju Jaya).
+# Removes installs made under the project's previous names (Mission Control, PT AI Maju Jaya, Ruang).
 remove_previous_names() {
   local old_command folder
-  for entry in "mission-control:mission-control:Mission Control installer" "majujaya:pt-ai-maju-jaya:PT AI Maju Jaya installer"; do
+  for entry in "mission-control:mission-control:Mission Control installer" "majujaya:pt-ai-maju-jaya:PT AI Maju Jaya installer" "ruang:ruang:Ruang installer"; do
     old_command="${entry%%:*}"
     folder="${entry#*:}"; folder="${folder%%:*}"
     local marker="${entry##*:}" launcher="$BIN_DIR/$old_command" unit="$HOME/.config/systemd/user/$old_command.service"
@@ -204,12 +204,12 @@ remove_previous_names() {
     fi
     rm -rf "$HOME/.local/share/$folder"
     rm -f "$launcher"
-    info "Removed the previous install under the old name ($old_command); the project is now Ruang."
+    info "Removed the previous install under the old name ($old_command); the project is now Space."
   done
 }
 
 uninstall() {
-  bold "Removing Ruang"
+  bold "Removing Space"
   if [ -f "$SERVICE_FILE" ] && command -v systemctl >/dev/null 2>&1; then
     systemctl --user disable --now "$SERVICE_NAME" >/dev/null 2>&1 || true
     rm -f "$SERVICE_FILE"
@@ -261,10 +261,10 @@ main() {
 
   local installed
   installed="$("$BIN_DIR/$COMMAND" --version)"
-  bold "Ruang $installed installed."
+  bold "Space $installed installed."
 
   if ! command -v opencode >/dev/null 2>&1; then
-    warn "The OpenCode CLI (opencode) is not on your PATH. Ruang reads the crew through it; install OpenCode first."
+    warn "The OpenCode CLI (opencode) is not on your PATH. Space reads the crew through it; install OpenCode first."
   fi
   if [ "$service" = 1 ]; then
     install_service

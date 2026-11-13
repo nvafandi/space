@@ -15,7 +15,7 @@ function StatTile({ label, value, detail, onClick }: { label: string; value: str
 /** The operations overview (formerly the Dashboard page), shown in the Office panel's Stats tab. */
 export function Stats({ dashboard, pending = false, onNavigate }: { dashboard: DashboardSnapshot | null; pending?: boolean; onNavigate?: (page: Page) => void }) {
   if (pending) return <LoadingState message="Reading runtime signals..."/>
-  if (!dashboard) return <EmptyState title="Not Available">The Ruang API could not be reached. Start it with <code>npm run dev</code>.</EmptyState>
+  if (!dashboard) return <EmptyState title="Not Available">The Space API could not be reached. Start it with <code>npm run dev</code>.</EmptyState>
   const { runtime, tasks, calendar, activity, knowledge, channels, office, commands } = dashboard
   const go = (page: Page) => onNavigate ? () => onNavigate(page) : undefined
   const openTasks = Object.entries(tasks.byStatus).filter(([status]) => !['done', 'archived'].includes(status)).reduce((sum, [, count]) => sum + count, 0)

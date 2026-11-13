@@ -16,7 +16,7 @@ let base: string
 let close: () => void
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'ruang-profile-lock-'))
+  dir = await mkdtemp(join(tmpdir(), 'space-profile-lock-'))
   const app = express()
   const privacyOf = installProfileLock(app, new ProfileLockStore(dir), new Throttle({ free: 5, maxWaitMs: 5 * 60_000, hardLimit: 10, hardWaitMs: 60 * 60_000 }))
   app.get('/api/who', async (request, response) => { const privacy = await privacyOf(request); response.json({ hidden: [...privacy.hidden], all: privacy.all }) })
@@ -27,7 +27,7 @@ beforeEach(async () => {
 })
 afterEach(() => close())
 
-const post = (path: string, body: unknown, cookie = '') => fetch(`${base}/api/profile-lock/${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-ruang-request': '1', ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body) })
+const post = (path: string, body: unknown, cookie = '') => fetch(`${base}/api/profile-lock/${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-space-request': '1', ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body) })
 const who = async (cookie = '') => (await (await fetch(`${base}/api/who`, { headers: cookie ? { cookie } : {} })).json()) as { hidden: string[]; all: boolean }
 const cookieOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? ''
 

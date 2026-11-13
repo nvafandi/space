@@ -1,16 +1,16 @@
 {
-  "name": "ruang",
+  "name": "space",
   "version": "0.2.0",
-  "description": "Ruang: a 3D virtual office and read-only mission control for your OpenCode crew",
+  "description": "Space: a 3D virtual office and read-only mission control for your OpenCode crew",
   "license": "MIT",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yugienugraha/ruang.git"
+    "url": "git+https://github.com/nvafandi/space.git"
   },
-  "homepage": "https://github.com/yugienugraha/ruang#readme",
+  "homepage": "https://github.com/nvafandi/space#readme",
   "bin": {
-    "ruang": "bin/ruang.js"
+    "space": "bin/space.js"
   },
   "files": [
     "bin",
@@ -25,7 +25,7 @@
     "dev:client": "vite",
     "dev:server": "tsx watch server/index.ts",
     "build": "tsc -b && vite build && tsc -p tsconfig.server.build.json",
-    "start": "node bin/ruang.js",
+    "start": "node bin/space.js",
     "lint": "eslint .",
     "test": "vitest run"
   },
