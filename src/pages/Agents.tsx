@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { OfficeSnapshot, RuntimeSnapshot } from '../types.ts'
 import { usePolling } from '../polling.ts'
 import { displayName, resetAgentName, saveAgentName } from '../agent-names.ts'
+import { clearLocalTask, localTaskStatusText, saveLocalTask, type LocalTaskStatus } from '../local-tasks.ts'
 import { EmptyState, LoadingState, PageTitle, RuntimeBadge } from '../ui.tsx'
 import { PixelCharacter } from './Office.tsx'
 
@@ -10,6 +11,7 @@ export function Agents({ runtime, pending = false }: { runtime: RuntimeSnapshot 
   const office = usePolling<OfficeSnapshot>('/api/office', 15_000)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string>()
   if (pending) return <><PageTitle eyebrow="CREW" title="Agents"/><LoadingState message="Reading runtime details..."/></>
@@ -24,6 +26,29 @@ export function Agents({ runtime, pending = false }: { runtime: RuntimeSnapshot 
   ]
   const aliasOf = (id: string) => runtime.agentNames?.[id]
   const lockedOf = (id: string) => states.get(id)?.privacy === 'locked'
+  const localTaskOf = (id: string) => runtime.localTasks?.[id]
+  const setTaskDraft = (id: string, value: string) => setDrafts((previous) => ({ ...previous, [id]: value }))
+  const clearTaskDraft = (id: string) => setDrafts((previous) => { const next = { ...previous }; delete next[id]; return next })
+
+  const saveTask = async (id: string, status: LocalTaskStatus) => {
+    setError(undefined)
+    setBusy((set) => new Set([...set, id]))
+    try {
+      const result = await saveLocalTask(id, drafts[id] ?? '', status)
+      if (result.ok) clearTaskDraft(id)
+      else setError(result.message)
+    } finally { setBusy((set) => { const next = new Set(set); next.delete(id); return next }) }
+  }
+
+  const clearTask = async (id: string) => {
+    setError(undefined)
+    setBusy((set) => new Set([...set, id]))
+    try {
+      const result = await clearLocalTask(id)
+      if (result.ok) clearTaskDraft(id)
+      else setError(result.message)
+    } finally { setBusy((set) => { const next = new Set(set); next.delete(id); return next }) }
+  }
   const startEdit = (id: string) => { setError(undefined); setDraft(aliasOf(id) ?? id); setEditingId(id) }
   const cancelEdit = () => { setEditingId(null); setDraft(''); setError(undefined) }
   const saveEdit = async () => {
@@ -48,6 +73,7 @@ export function Agents({ runtime, pending = false }: { runtime: RuntimeSnapshot 
       const station = states.get(card.id)
       const alias = aliasOf(card.id)
       const locked = lockedOf(card.id)
+      const localTask = localTaskOf(card.id)
       return <article className="agent-card" key={card.id}>
         <span className="folder-glyph" aria-hidden="true"><PixelCharacter agent={card.id}/></span>
         <div className="agent-card-body">
@@ -71,6 +97,21 @@ export function Agents({ runtime, pending = false }: { runtime: RuntimeSnapshot 
             <div><dt>Gateway</dt><dd>{card.gateway ? <RuntimeBadge source={{ availability: 'available', data: card.gateway }}/> : <span className="muted">None (CLI tool)</span>}</dd></div>
             <div><dt>In the office</dt><dd>{station ? `${station.state}${station.activity ? ` · ${station.activity}` : ''}` : '—'}</dd></div>
           </dl>
+          <div className="agent-task">
+            {localTask ? (
+              <>
+                <p className="muted">Local task: {localTask.title} · {localTaskStatusText(localTask.status)}</p>
+                <button type="button" className="refresh-button" disabled={busy.has(card.id)} onClick={(event) => { event.stopPropagation(); void clearTask(card.id) }}>CLEAR</button>
+              </>
+            ) : (
+              <>
+                <input className="text-input" value={drafts[card.id] ?? ''} onChange={(event) => setTaskDraft(card.id, event.target.value)} placeholder="Task title" aria-label={`Assign a task to ${card.id}`}/>
+                <button type="button" className="primary-button" disabled={busy.has(card.id) || !drafts[card.id]?.trim()} onClick={(event) => { event.stopPropagation(); void saveTask(card.id, 'running') }}>RUNNING</button>
+                <button type="button" className="primary-button" disabled={busy.has(card.id) || !drafts[card.id]?.trim()} onClick={(event) => { event.stopPropagation(); void saveTask(card.id, 'review') }}>REVIEW</button>
+                {error && <p className="form-error" role="alert">{error}</p>}
+              </>
+            )}
+          </div>
         </div>
       </article>
     })}</section>

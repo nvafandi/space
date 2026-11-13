@@ -231,6 +231,22 @@ describe('Office snapshot', () => {
     expect(active.stations[0].state).toBe('Reviewing')
     expect(expired.stations[0].state).toBe('Working')
   })
+
+  it('puts a station in Working or Reviewing from a locally assigned task, overriding the board', () => {
+    const localTasksRuntime = {
+      ...runtime,
+      profiles: { availability: 'available' as const, data: [{ name: 'sobirin', model: 'm', gateway: 'Running' as const }] },
+      localTasks: { sobirin: { id: 'sobirin', title: 'Fix login', status: 'running' as const } },
+    }
+    const board = { tasks: { availability: 'available' as const, data: [{ title: 'Board work', status: 'done', assignee: 'sobirin' }] }, fetchedAt: localTasksRuntime.fetchedAt }
+    const activity = { sessions: { availability: 'available' as const, data: [] }, fetchedAt: localTasksRuntime.fetchedAt }
+
+    const running = buildOfficeSnapshot(localTasksRuntime, board, activity, { now: localTasksRuntime.fetchedAt })
+    expect(running.stations).toContainEqual(expect.objectContaining({ id: 'sobirin', name: 'sobirin', state: 'Working', currentTask: 'Fix login', activity: 'Working: Fix login' }))
+
+    const reviewing = buildOfficeSnapshot({ ...localTasksRuntime, localTasks: { sobirin: { id: 'sobirin', title: 'Fix login', status: 'review' } } }, board, activity, { now: localTasksRuntime.fetchedAt })
+    expect(reviewing.stations).toContainEqual(expect.objectContaining({ id: 'sobirin', name: 'sobirin', state: 'Reviewing', currentTask: 'Fix login', activity: 'Reviewing: Fix login' }))
+  })
 })
 
 describe('calendar across profiles', () => {

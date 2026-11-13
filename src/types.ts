@@ -9,6 +9,8 @@ export interface RuntimeSnapshot {
   openCodeAgents?: { id: string; role: string; mode?: string }[]
   /** Local display aliases, by agent id; Space's own config, never the id itself. */
   agentNames?: Record<string, string>
+  /** Locally assigned tasks, by agent id; Space's own config, a testing override of office state. */
+  localTasks?: Record<string, { id: string; title: string; status: 'running' | 'review' }>
   fetchedAt: string
 }
 export interface Task { title: string; status: string; id?: string; assignee?: string; priority?: number; board?: string; private?: boolean }

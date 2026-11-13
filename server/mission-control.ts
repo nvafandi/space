@@ -2,6 +2,7 @@ import { execFile as execFileCallback } from 'node:child_process'
 import { promisify } from 'node:util'
 import { discoverOpenCodeAgents, type OpenCodeAgent } from './opencode-agents.js'
 import { AgentNamesStore, type AgentNames } from './agent-names.js'
+import { type LocalTask, LocalTasksStore } from './local-tasks.js'
 
 const execFile = promisify(execFileCallback)
 const CACHE_MS = 10_000
@@ -27,6 +28,8 @@ export interface RuntimeSnapshot {
   openCodeAgents?: OpenCodeAgent[]
   /** Local display aliases, by agent id (Space's own config; the id itself never changes). */
   agentNames?: AgentNames
+  /** Locally assigned tasks, by agent id (Space's own config; a testing override of office state). */
+  localTasks?: Record<string, LocalTask>
   fetchedAt: string
 }
 export interface Task { title: string; status: string; id?: string; assignee?: string; priority?: number; board?: string; /** Belongs to a locked agent (profile lock): the title is withheld. */ private?: boolean }
@@ -521,8 +524,8 @@ export async function collectSnapshot(run: Run = systemRun): Promise<RuntimeSnap
     read(run, 'opencode', ['--version'], (value) => value.trim().split('\n').pop()?.trim() || 'Unknown', 'Unknown'),
   ])
   const openCodeAgents = discoverOpenCodeAgents() // files only: no command is run
-  const agentNames = await namesStore.load() // local aliases only: never a Hermes or OpenCode change
-  return { profiles, openCode, openCodeAgents, agentNames, fetchedAt: new Date().toISOString() }
+  const [agentNames, localTasks] = await Promise.all([namesStore.load(), localTasksStore.load()]) // local state only: never a Hermes or OpenCode change
+  return { profiles, openCode, openCodeAgents, agentNames, localTasks, fetchedAt: new Date().toISOString() }
 }
 
 /** Board slugs passed to `hermes kanban --board`: Hermes' own slug rule, never an option. */
@@ -938,20 +941,27 @@ export function buildOfficeSnapshot(runtime: RuntimeSnapshot, board: TaskBoardSn
     const collaboration = freshActivity ? collaborationState(activity.sessions.data, agent.aliases) : 'Unknown'
     const stopped = gateway === 'Stopped'
     const liveKnown = options.agentActivity ? agentActivity !== undefined && live.known : true
+    // A locally assigned task (Space's own config, for testing) is the strongest direct
+    // source: it puts the station in Working / Reviewing with its own title, overriding the
+    // Kanban board for that agent.
+    const localTask = runtime.localTasks?.[agent.id]
+    const localTaskState = localTask ? (localTask.status === 'running' ? 'Working' : localTask.status === 'review' ? 'Reviewing' : 'Unknown') : 'Unknown'
     // A stopped gateway only means the agent is not listening on messaging platforms; many agents
     // are used from the CLI and never run one, so it does not make an agent Offline. Direct
     // evidence of work wins; a Kanban task explains that work when it is running.
-    const direct: OfficeState | undefined = overlay ?? (live.state !== 'Unknown' ? (taskWorkState !== 'Unknown' ? taskWorkState : live.state) : undefined)
+    const direct: OfficeState | undefined = overlay ?? (live.state !== 'Unknown' ? (localTaskState !== 'Unknown' ? localTaskState : (taskWorkState !== 'Unknown' ? taskWorkState : live.state)) : undefined)
     // OpenCode has no activity source, so `freshActivity` is always false there. Idle is a
     // managed placement decision, not an activity signal: a task-less agent that is not
     // collaborating, with fresh runtime input and a known live state, is Idle. Board
     // unavailability is a valid empty state, not stale data, so it no longer blocks Idle.
     // Unknown stays reserved for stale or unavailable inputs.
-    const state: OfficeState = direct ?? (taskWorkState !== 'Unknown' ? taskWorkState : collaboration !== 'Unknown' ? collaboration : freshRuntime && liveKnown ? 'Idle' : 'Unknown')
-    const currentTask = board.tasks.availability === 'unavailable' ? 'Not Available' : task?.title ?? 'No attributed task'
-    const activityLabel = state === 'Working' && taskWorkState === 'Working' && task ? `Kanban: ${task.title}`
-      : state === 'Reviewing' && task ? `Reviewing: ${task.title}`
-        : ['Working', 'Collaborating'].includes(state) && live.probe?.label ? live.probe.label
+    const state: OfficeState = direct ?? (localTaskState !== 'Unknown' ? localTaskState : taskWorkState !== 'Unknown' ? taskWorkState : collaboration !== 'Unknown' ? collaboration : freshRuntime && liveKnown ? 'Idle' : 'Unknown')
+    const currentTask = board.tasks.availability === 'unavailable' ? 'Not Available' : localTask?.title ?? task?.title ?? 'No attributed task'
+    const activityLabel = state === 'Working' && localTaskState === 'Working' && localTask ? `Working: ${localTask.title}`
+      : state === 'Reviewing' && localTaskState === 'Reviewing' && localTask ? `Reviewing: ${localTask.title}`
+        : state === 'Working' && taskWorkState === 'Working' && task ? `Kanban: ${task.title}`
+          : state === 'Reviewing' && task ? `Reviewing: ${task.title}`
+            : ['Working', 'Collaborating'].includes(state) && live.probe?.label ? live.probe.label
           : state === 'Idle' ? stopped ? 'On a break · gateway stopped' : 'On a break'
               : ''
     const recentActivity = live.probe
@@ -1028,6 +1038,7 @@ function cachedSource<T>(collect: () => Promise<T>, ttl = CACHE_MS) {
 // One shared store: its cache mirrors the file's stat, so edits from this server, the CLI
 // or another Space are all picked up.
 const namesStore = new AgentNamesStore()
+const localTasksStore = new LocalTasksStore()
 const runtimeSource = cachedSource(() => collectSnapshot())
 const taskBoardSource = cachedSource(() => collectTaskBoard())
 const calendarSource = cachedSource(() => collectCalendar())

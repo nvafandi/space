@@ -10,6 +10,7 @@ import { API_VERSION } from './api-version.js'
 import { collectMemory } from './memory.js'
 import { clearSnapshotCache, getActivity, getCalendar, getChannels, getCommandLog, getDashboard, getKnowledge, getLogs, getOffice, getSnapshot, getTaskBoard, getTaskDetail, getUsage } from './mission-control.js'
 import { installAgentNames } from './agent-names.js'
+import { installLocalTasks } from './local-tasks.js'
 
 const HOST = '127.0.0.1'
 // MISSION_CONTROL_PORT is the pre-rename name, still honoured.
@@ -35,6 +36,9 @@ const privacyOf = installProfileLock(app)
 // Display names: local aliases per agent id. Behind the access-code lock like every other
 // write, and each saved name drops the shared snapshot cache so the UIs see it at once.
 installAgentNames(app, undefined, clearSnapshotCache)
+// Locally assigned tasks: a testing override of office state. Behind the access-code lock
+// like every other write; each saved task drops the shared snapshot cache.
+installLocalTasks(app, clearSnapshotCache)
 
 // `?fresh=1` (manual refresh) bypasses the 10s cache for anything older than 2s.
 const FRESH_WINDOW_MS = 8_000
