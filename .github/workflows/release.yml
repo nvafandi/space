@@ -1,0 +1,44 @@
+# Publishes a release when a version tag is pushed, for example:
+#   npm version 0.2.1 && git push origin main --follow-tags
+# The installer (install.sh) downloads the attached ruang.tgz.
+# Publishing to npm as well is optional: add an NPM_TOKEN repository secret to enable it.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - name: Check the tag matches package.json
+        run: test "v$(node -p 'require("./package.json").version')" = "$GITHUB_REF_NAME"
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - name: Pack
+        run: |
+          npm pack
+          mv "ruang-${GITHUB_REF_NAME#v}.tgz" ruang.tgz
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" ruang.tgz --title "$GITHUB_REF_NAME" --generate-notes
+      - name: Publish to npm (only when the NPM_TOKEN secret is set)
+        if: env.NPM_TOKEN != ''
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish ruang.tgz --access public

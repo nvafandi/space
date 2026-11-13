@@ -1,0 +1,30 @@
+# Lint, test and build every push to main and every pull request.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - name: Package installs and starts
+        run: |
+          npm pack
+          npm install --global --prefix "$RUNNER_TEMP/mc" ./ruang-*.tgz
+          "$RUNNER_TEMP/mc/bin/ruang" --version
+          bash -n install.sh
