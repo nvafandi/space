@@ -90,4 +90,38 @@ describe('office roster', () => {
       ['opencode', 'OpenCode', 'opencode', 'opencode'],
     ])
   })
+
+  describe('agent display names', () => {
+    it('shows the alias instead of the id, without changing the id', () => {
+      const specs = agentRoster({
+        ...runtime,
+        profiles: { availability: 'available', data: [{ name: 'default', model: 'm', gateway: 'Running' }] },
+        agentNames: { default: 'Default', opencode: 'The install' },
+      })
+      expect(specs.map((spec) => [spec.id, spec.displayName])).toEqual([['default', 'Default'], ['opencode', 'The install']])
+    })
+
+    it('sets displayName on every office station while name stays the agent id', () => {
+      const office = buildOfficeSnapshot({
+        ...runtime,
+        profiles: { availability: 'available', data: [{ name: 'default', model: 'm', gateway: 'Running' }] },
+        openCodeAgents: [{ id: 'analyst', role: 'Analyst' }],
+        agentNames: { default: 'Default', analyst: 'The Analyst' },
+      }, emptyBoard, emptyActivity, { now: at })
+
+      expect(office.stations.map((station) => [station.id, station.name, station.displayName])).toEqual([
+        ['default', 'default', 'Default'],
+        ['analyst', 'analyst', 'The Analyst'],
+      ])
+      // No alias: the station falls back to its id.
+      const plain = buildOfficeSnapshot({
+        ...runtime,
+        profiles: { availability: 'available', data: [{ name: 'default', model: 'm', gateway: 'Running' }] },
+      }, emptyBoard, emptyActivity, { now: at })
+      expect(plain.stations.map((station) => [station.id, station.name, station.displayName])).toEqual([
+        ['default', 'default', undefined],
+        ['opencode', 'opencode', undefined],
+      ])
+    })
+  })
 })

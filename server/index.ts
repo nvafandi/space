@@ -8,7 +8,8 @@ import { redactActivity, redactCalendar, redactDashboard, redactLogs, redactMemo
 import { installProfileLock, isHidden, type Privacy } from './profile-lock.js'
 import { API_VERSION } from './api-version.js'
 import { collectMemory } from './memory.js'
-import { getActivity, getCalendar, getChannels, getCommandLog, getDashboard, getKnowledge, getLogs, getOffice, getSnapshot, getTaskBoard, getTaskDetail, getUsage } from './mission-control.js'
+import { clearSnapshotCache, getActivity, getCalendar, getChannels, getCommandLog, getDashboard, getKnowledge, getLogs, getOffice, getSnapshot, getTaskBoard, getTaskDetail, getUsage } from './mission-control.js'
+import { installAgentNames } from './agent-names.js'
 
 const HOST = '127.0.0.1'
 // MISSION_CONTROL_PORT is the pre-rename name, still honoured.
@@ -31,6 +32,9 @@ app.get('/api/health', (_request, response) => { response.json({ ok: true, apiVe
 installAccess(app)
 // Optional profile lock (off by default): a PIN withholds the private data of chosen agents.
 const privacyOf = installProfileLock(app)
+// Display names: local aliases per agent id. Behind the access-code lock like every other
+// write, and each saved name drops the shared snapshot cache so the UIs see it at once.
+installAgentNames(app, undefined, clearSnapshotCache)
 
 // `?fresh=1` (manual refresh) bypasses the 10s cache for anything older than 2s.
 const FRESH_WINDOW_MS = 8_000

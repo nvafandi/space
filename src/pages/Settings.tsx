@@ -1,8 +1,10 @@
-import { useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { accessRequest, downloadCode, generateCode, type AccessStatus } from '../access.ts'
+import { displayName, resetAgentName, saveAgentName } from '../agent-names.ts'
 import { formatDateTime } from '../format.ts'
 import { PageTitle } from '../ui.tsx'
 import { ProfileLockSettings } from './ProfileLockSettings.tsx'
+import type { RuntimeSnapshot } from '../types.ts'
 
 type Mode = 'idle' | 'set' | 'off'
 
@@ -88,7 +90,69 @@ function TurnOff({ onDone, onCancel }: { onDone: (status: AccessStatus) => void;
   </form>
 }
 
-export function Settings({ access, onAccessChange }: { access: AccessStatus | undefined; onAccessChange: (status: AccessStatus) => void }) {
+/** One row per discovered agent: its local alias, with Save and Reset to its id. */
+function AgentNames({ runtime }: { runtime: RuntimeSnapshot | null }) {
+  const agents = useMemo(() => {
+    const found = new Set<string>()
+    const list: { id: string; kind: string }[] = []
+    const add = (id: string, kind: string) => { if (id && !found.has(id)) { found.add(id); list.push({ id, kind }) } }
+    if (runtime?.profiles.availability === 'available') runtime.profiles.data.forEach((profile) => add(profile.name, 'Hermes profile'))
+    runtime?.openCodeAgents?.forEach((agent) => add(agent.id, agent.mode ? `OpenCode ${agent.mode}` : 'OpenCode agent'))
+    if (runtime?.openCode.availability === 'available') add('opencode', 'OpenCode (install)')
+    return list
+  }, [runtime])
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState<Set<string>>(new Set())
+  const [message, setMessage] = useState<string>()
+  const [error, setError] = useState<string>()
+  const alias = useCallback((id: string) => runtime?.agentNames?.[id], [runtime])
+
+  useEffect(() => { setDrafts(Object.fromEntries(agents.map((agent) => [agent.id, alias(agent.id) ?? '']))) }, [agents, alias])
+
+  const save = async (id: string) => {
+    setError(undefined); setMessage(undefined)
+    setBusy((set) => new Set([...set, id]))
+    try {
+      const result = await saveAgentName(id, drafts[id] ?? '')
+      if (result.ok) { setMessage(`${id} now shows as ${displayName(id, drafts[id])}.`); setDrafts({ ...drafts, [id]: alias(id) ?? '' }) }
+      else setError(result.message)
+    } finally { setBusy((set) => { const next = new Set(set); next.delete(id); return next }) }
+  }
+
+  const reset = async (id: string) => {
+    setError(undefined); setMessage(undefined)
+    setBusy((set) => new Set([...set, id]))
+    try {
+      const result = await resetAgentName(id)
+      if (result.ok) { setDrafts({ ...drafts, [id]: '' }); setMessage(`${id} shows as its id again.`) }
+      else setError(result.message)
+    } finally { setBusy((set) => { const next = new Set(set); next.delete(id); return next }) }
+  }
+
+  return <section className="card settings-card" aria-labelledby="agent-names-title">
+    <div className="settings-head"><div><p className="eyebrow">AGENTS</p><h2 id="agent-names-title">Agent names</h2></div></div>
+    <p className="muted">A name is a local alias for this Space only: the office, the agents list and a station's detail dialog show it instead of the id. The id itself — and with it the agent's folder, memory and identity — never changes. Save with an empty name to reset an alias.</p>
+    {message && <p className="form-success" role="status">{message}</p>}
+    {error && <p className="form-error" role="alert">{error}</p>}
+    {agents.length === 0 ? <p className="muted">No agents discovered yet.</p> : (
+      <ul className="agent-names-list">
+        {agents.map((agent) => {
+          const id = agent.id
+          const current = drafts[id] ?? alias(id) ?? ''
+          return <li key={id} className="agent-names-row">
+            <label className="field-label" htmlFor={`agent-name-${id}`}>{displayName(id, alias(id))}<span className="muted"> · {agent.kind}</span></label>
+            <p className="small-note">Id: <code>{id}</code> — folder, memory and identity stay {id}.</p>
+            <input id={`agent-name-${id}`} className="text-input" value={current} onChange={(event) => setDrafts({ ...drafts, [id]: event.target.value })} placeholder={id} aria-label={`Alias for ${id}`}/>
+            <button type="button" className="primary-button" disabled={busy.has(id)} onClick={() => void save(id)}>SAVE</button>
+            {alias(id) && <button type="button" className="refresh-button" onClick={() => void reset(id)}>RESET</button>}
+          </li>
+        })}
+      </ul>
+    )}
+  </section>
+}
+
+export function Settings({ runtime, access, onAccessChange }: { runtime: RuntimeSnapshot | null; access: AccessStatus | undefined; onAccessChange: (status: AccessStatus) => void }) {
   const [mode, setMode] = useState<Mode>('idle')
   const [message, setMessage] = useState<string>()
   const done = (text: string) => (status: AccessStatus) => { setMode('idle'); setMessage(text); onAccessChange(status) }
@@ -113,6 +177,7 @@ export function Settings({ access, onAccessChange }: { access: AccessStatus | un
         <p className="small-note">Lost the code? On the machine that runs Space, run <code>space access-code off</code> (or <code>space access-code new</code> for a new random code).</p>
       </>}
     </section>
+    <AgentNames runtime={runtime}/>
     <ProfileLockSettings/>
   </>
 }

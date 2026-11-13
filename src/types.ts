@@ -7,6 +7,8 @@ export interface RuntimeSnapshot {
   openCode: Source<string>
   /** Every agent defined in the shared OpenCode install (agents/*.md). */
   openCodeAgents?: { id: string; role: string; mode?: string }[]
+  /** Local display aliases, by agent id; Space's own config, never the id itself. */
+  agentNames?: Record<string, string>
   fetchedAt: string
 }
 export interface Task { title: string; status: string; id?: string; assignee?: string; priority?: number; board?: string; private?: boolean }
@@ -30,6 +32,8 @@ export interface OfficeStation {
   /** Profile lock: `locked` withholds its private data in this browser, `unlocked` is opened with the PIN. */
   privacy?: 'locked' | 'unlocked'
   name: string
+  /** Local alias when one is set, otherwise the agent id. */
+  displayName?: string
   role: string
   room: OfficeRoom
   roomPosition: string

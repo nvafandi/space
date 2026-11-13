@@ -6,6 +6,7 @@ import { formatCompact, formatDateTime, formatNumber } from '../format.ts'
 import type { Page } from '../routes.ts'
 import type { ActivitySnapshot, ChannelSnapshot, DashboardSnapshot, OfficeRoom, OfficeSnapshot, OfficeStation, UsageSnapshot } from '../types.ts'
 import { LoadingState, SourceStatus } from '../ui.tsx'
+import { displayName, resetAgentName, saveAgentName } from '../agent-names.ts'
 import { CalendarOverlayView } from './Calendar.tsx'
 import { AgentFolder } from './Folders.tsx'
 import { AgentMemoryView } from './Memory.tsx'
@@ -79,12 +80,34 @@ export function OfficeDetail({ station, onClose }: { station: OfficeStation; onC
   const closeRef = useRef<HTMLButtonElement>(null)
   const dialogRef = useRef<HTMLElement>(null)
   const [tab, setTab] = useState<DetailTab>('Overview')
+  const [editingName, setEditingName] = useState(false)
+  const [draftName, setDraftName] = useState(station.displayName ?? '')
+  const [busyName, setBusyName] = useState(false)
+  const [nameError, setNameError] = useState<string>()
   useEffect(() => { closeRef.current?.focus() }, [])
   const badge = officeStateBadge(station.state)
   const profile = station.id
   // Every OpenCode agent shares the single install, so its folder and memory are the install's.
   const folderAgent = station.folderAgent ?? station.id
   const memoryAgent = station.memoryAgent ?? station.id
+
+  const saveName = async () => {
+    setNameError(undefined); setBusyName(true)
+    try {
+      const result = await saveAgentName(station.id, draftName)
+      if (result.ok) setEditingName(false)
+      else setNameError(result.message)
+    } finally { setBusyName(false) }
+  }
+
+  const resetName = async () => {
+    setNameError(undefined); setBusyName(true)
+    try {
+      const result = await resetAgentName(station.id)
+      if (result.ok) setDraftName('')
+      else setNameError(result.message)
+    } finally { setBusyName(false) }
+  }
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key === 'Escape') { event.stopPropagation(); onClose(); return }
     if (event.key !== 'Tab') return
@@ -101,7 +124,22 @@ export function OfficeDetail({ station, onClose }: { station: OfficeStation; onC
   return <div className="office-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
     <section className={`office-detail${tab === 'Overview' ? '' : ' wide'}`} ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="office-detail-title" onKeyDown={onKeyDown}>
       <button className="office-close" ref={closeRef} onClick={onClose} aria-label={`Close ${station.name} details`}>Close</button>
-      <div className="detail-head"><div className="detail-avatar"><PixelCharacter agent={station.id}/></div><div><p className="eyebrow">STATION DETAIL</p><h2 id="office-detail-title">{station.name}</h2><span className={`badge ${badge.tone}`}>{officeStateLabel(station)}</span>{station.privacy === 'locked' && <span className="badge muted">🔒 Locked</span>}</div></div>
+      <div className="detail-head"><div className="detail-avatar"><PixelCharacter agent={station.id}/></div><div><p className="eyebrow">STATION DETAIL</p><h2 id="office-detail-title">{displayName(station.id, station.displayName)}</h2><span className={`badge ${badge.tone}`}>{officeStateLabel(station)}</span>{station.privacy === 'locked' && <span className="badge muted">🔒 Locked</span>}
+        {editingName ? (
+          <div className="detail-name-edit">
+            <input className="text-input" autoFocus value={draftName} onChange={(event) => setDraftName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void saveName() } if (event.key === 'Escape') { event.preventDefault(); setEditingName(false); setDraftName(station.displayName ?? '') } }}/>
+            <button type="button" className="primary-button" disabled={busyName} onClick={saveName}>{busyName ? 'Saving…' : 'Save name'}</button>
+            <button type="button" className="refresh-button" onClick={() => { setEditingName(false); setDraftName(station.displayName ?? '') }}>Cancel</button>
+            {nameError && <p className="form-error" role="alert">{nameError}</p>}
+          </div>
+        ) : (
+          <>
+            {station.displayName ? <p className="small-note">Local alias for <code>{station.id}</code> — the id, folder and memory stay unchanged.</p> : <p className="small-note">No alias yet — the office shows <code>{station.id}</code>.</p>}
+            <button type="button" className="refresh-button" onClick={() => { setDraftName(station.displayName ?? ''); setEditingName(true) }} aria-label="Edit display name">Edit name</button>
+            {station.displayName && <button type="button" className="refresh-button" onClick={resetName}>Reset to id</button>}
+          </>
+        )}
+      </div></div>
       {profile && <div className="detail-tabs" role="tablist" aria-label={`${station.name} details`}>{DETAIL_TABS.map((item) => <button type="button" role="tab" key={item} aria-selected={tab === item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>)}</div>}
       <div role="tabpanel" aria-label={tab} className="detail-body">
         {tab === 'Overview' && <>{station.privacy === 'locked' && <p className="file-notice">🔒 {station.name} is locked: its task, activity, memory and files are private. Open the Folder or Memory tab to enter the PIN.</p>}
@@ -193,8 +231,8 @@ export function Office({ dashboard, dashboardPending = false, onNavigate }: { da
   const hud = hudItems(office, dashboard)
   // Hot desking: one unlabeled desk per agent.
   const deskCount = office?.stations.length ?? 0
-  const stationButton2d = (station: OfficeStation) => { const badge = officeStateBadge(station.state); const busy = ['Working', 'Reviewing', 'Collaborating'].includes(station.state); return <button className={`pixel-station ${station.roomPosition} state-${station.state.toLowerCase()}`} key={station.id} onClick={(event) => { selectedTrigger.current = event.currentTarget; setSelectedName(station.name) }} aria-label={`${station.name}. ${officeStateLabel(station)}${station.activity ? `: ${station.activity}` : ''}. Open station details.`} title={station.activity || officeStateLabel(station)}>{busy && station.activity && <span className="speech" aria-hidden="true">{station.activity}</span>}<span className="pixel-station-name">{station.privacy === 'locked' ? '🔒 ' : ''}{station.name}</span><span className={`badge ${badge.tone}`}>{officeStateLabel(station)}</span>{station.state === 'Unknown' && <span className="neutral-label">NEUTRAL PRESENCE</span>}<PixelCharacter agent={station.id}/></button> }
-  const stationButton = (station: OfficeStation) => { const badge = officeStateBadge(station.state); return <button type="button" className="crew-row" key={station.name} onClick={(event) => { selectedTrigger.current = event.currentTarget; setSelectedName(station.name) }} aria-label={`Details for ${station.name}: ${officeStateLabel(station)}`}><PixelCharacter agent={station.id}/><span><strong>{station.name}</strong><small>{station.activity || station.role}</small></span><span className={`badge ${badge.tone}`}>{station.state}</span></button> }
+  const stationButton2d = (station: OfficeStation) => { const badge = officeStateBadge(station.state); const busy = ['Working', 'Reviewing', 'Collaborating'].includes(station.state); return <button className={`pixel-station ${station.roomPosition} state-${station.state.toLowerCase()}`} key={station.id} onClick={(event) => { selectedTrigger.current = event.currentTarget; setSelectedName(station.name) }} aria-label={`${station.name}. ${officeStateLabel(station)}${station.activity ? `: ${station.activity}` : ''}. Open station details.`} title={station.activity || officeStateLabel(station)}>{busy && station.activity && <span className="speech" aria-hidden="true">{station.activity}</span>}<span className="pixel-station-name">{station.privacy === 'locked' ? '🔒 ' : ''}{displayName(station.id, station.displayName)}</span><span className={`badge ${badge.tone}`}>{officeStateLabel(station)}</span>{station.state === 'Unknown' && <span className="neutral-label">NEUTRAL PRESENCE</span>}<PixelCharacter agent={station.id}/></button> }
+  const stationButton = (station: OfficeStation) => { const badge = officeStateBadge(station.state); return <button type="button" className="crew-row" key={station.name} onClick={(event) => { selectedTrigger.current = event.currentTarget; setSelectedName(station.name) }} aria-label={`Details for ${station.name}: ${officeStateLabel(station)}`}><PixelCharacter agent={station.id}/><span><strong>{displayName(station.id, station.displayName)}</strong><small>{station.activity || station.role}</small></span><span className={`badge ${badge.tone}`}>{station.state}</span></button> }
   return <section className={`office-stage view-${show3d ? '3d' : '2d'}`} aria-label="Visual Office">
     <div className="office-hud" role="list" aria-label="Key statistics">{hud.map((item) => { const body = <><span>{item.label}</span><b>{item.value}</b></>; return <div role="listitem" key={item.label}>{item.page && onNavigate ? <button type="button" className={`hud-chip${item.tone ? ` ${item.tone}` : ''}`} title={item.title ?? `Open ${item.page}`} onClick={() => onNavigate(item.page!)}>{body}</button> : <span className={`hud-chip${item.tone ? ` ${item.tone}` : ''}`} title={item.title}>{body}</span>}</div> })}</div>
     <div className="office-stage-tools">

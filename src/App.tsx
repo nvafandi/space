@@ -12,6 +12,7 @@ import { Usage } from './pages/Usage.tsx'
 import { TaskBoard } from './pages/TaskBoard.tsx'
 import { LOCKED_EVENT, loadAccess, type AccessStatus } from './access.ts'
 import { PROFILES_CHANGED } from './profile-lock.ts'
+import { AGENT_NAMES_EVENT } from './agent-names.ts'
 import { LockScreen } from './LockScreen.tsx'
 import { API_VERSION } from './api-version.ts'
 import { RefreshContext, usePolling } from './polling.ts'
@@ -75,7 +76,7 @@ function Shell({ onRefresh, access, onAccessChange }: { onRefresh: () => void; a
   const syncLabel = data ? `SYNCED ${formatTime(data.fetchedAt)}${dashboard.status === 'ready' && dashboard.stale ? ' · STALE' : ''}` : dashboard.status === 'failed' ? 'API NOT AVAILABLE' : 'CONNECTING...'
 
   const alerts = (data && data.commands.failed > 0 ? 1 : 0)
-  const content = page === 'Agents' ? <Agents runtime={data?.runtime ?? null} pending={dashboard.status === 'pending'}/> : page === 'Office' ? <Office dashboard={data} dashboardPending={dashboard.status === 'pending'} onNavigate={navigate}/> : page === 'Usage' ? <Usage/>: page === 'Task Board' ? <TaskBoard/> : page === 'Calendar' ? <Calendar/> : page === 'Activity' ? <Activity/> : page === 'Memory' ? <Memory onOpenFolders={() => navigate('Folders')}/> : page === 'Folders' ? <Folders/> : page === 'Settings' ? <Settings access={access} onAccessChange={onAccessChange}/> : <Logs/>
+  const content = page === 'Agents' ? <Agents runtime={data?.runtime ?? null} pending={dashboard.status === 'pending'}/> : page === 'Office' ? <Office dashboard={data} dashboardPending={dashboard.status === 'pending'} onNavigate={navigate}/> : page === 'Usage' ? <Usage/>: page === 'Task Board' ? <TaskBoard/> : page === 'Calendar' ? <Calendar/> : page === 'Activity' ? <Activity/> : page === 'Memory' ? <Memory onOpenFolders={() => navigate('Folders')}/> : page === 'Folders' ? <Folders/> : page === 'Settings' ? <Settings runtime={data?.runtime ?? null} access={access} onAccessChange={onAccessChange}/> : <Logs/>
 
   return <div className={`app${page === 'Office' ? ' app-office' : ''}`}>
     {menuOpen && <div className="drawer-backdrop" onClick={closeMenu} aria-hidden="true"/>}
@@ -105,7 +106,9 @@ export function App() {
     // Unlocking or locking an agent changes what every source may show: refresh them all.
     const refresh = () => setTick((value) => value + 1)
     window.addEventListener(PROFILES_CHANGED, refresh)
-    return () => { active = false; window.removeEventListener(LOCKED_EVENT, check); window.removeEventListener(PROFILES_CHANGED, refresh) }
+    // Same for a saved display name: every view must read the new snapshot.
+    window.addEventListener(AGENT_NAMES_EVENT, refresh)
+    return () => { active = false; window.removeEventListener(LOCKED_EVENT, check); window.removeEventListener(PROFILES_CHANGED, refresh); window.removeEventListener(AGENT_NAMES_EVENT, refresh) }
   }, [])
   if (!checked) return <main className="lock-screen" aria-busy="true"/>
   if (access?.enabled && !access.unlocked) return <LockScreen status={access} onUnlocked={(status) => { setAccess(status); setTick((value) => value + 1) }}/>

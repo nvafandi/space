@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { loadSnapshot, mergeRefresh, type RequestState } from './request-state.ts'
+import { PROFILES_CHANGED } from './profile-lock.ts'
+import { AGENT_NAMES_EVENT } from './agent-names.ts'
 
 /** Incremented by the header refresh control; every poller refetches when it changes. */
 export const RefreshContext = createContext(0)
@@ -19,6 +21,13 @@ export function usePolling<T>(path: string, intervalMs = 15_000): Polled<T> {
     setState((previous) => mergeRefresh(previous, next))
     setRefreshing(false)
   }, [path])
+
+  // A write from another view (profile lock, display names) must be read at once.
+  const onChanged = useCallback(() => { void load(true) }, [load])
+  useEffect(() => {
+    for (const event of [PROFILES_CHANGED, AGENT_NAMES_EVENT]) window.addEventListener(event, onChanged)
+    return () => { for (const event of [PROFILES_CHANGED, AGENT_NAMES_EVENT]) window.removeEventListener(event, onChanged) }
+  }, [onChanged])
 
   useEffect(() => {
     mounted.current = true

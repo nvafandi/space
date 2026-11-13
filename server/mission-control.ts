@@ -1,6 +1,7 @@
 import { execFile as execFileCallback } from 'node:child_process'
 import { promisify } from 'node:util'
 import { discoverOpenCodeAgents, type OpenCodeAgent } from './opencode-agents.js'
+import { AgentNamesStore, type AgentNames } from './agent-names.js'
 
 const execFile = promisify(execFileCallback)
 const CACHE_MS = 10_000
@@ -24,6 +25,8 @@ export interface RuntimeSnapshot {
   openCode: Source<string>
   /** Every agent defined in the shared OpenCode install (agents/*.md); read from disk, never from a CLI. */
   openCodeAgents?: OpenCodeAgent[]
+  /** Local display aliases, by agent id (Space's own config; the id itself never changes). */
+  agentNames?: AgentNames
   fetchedAt: string
 }
 export interface Task { title: string; status: string; id?: string; assignee?: string; priority?: number; board?: string; /** Belongs to a locked agent (profile lock): the title is withheld. */ private?: boolean }
@@ -46,7 +49,9 @@ export interface OfficeStation {
   id: string
   /** Profile lock: `locked` withholds its private data in this browser, `unlocked` is opened with the PIN. */
   privacy?: 'locked' | 'unlocked'
+  /** The name this station shows: the local alias when one is set, otherwise the agent id. */
   name: string
+  displayName?: string
   role: string
   room: OfficeRoom
   roomPosition: string
@@ -516,7 +521,8 @@ export async function collectSnapshot(run: Run = systemRun): Promise<RuntimeSnap
     read(run, 'opencode', ['--version'], (value) => value.trim().split('\n').pop()?.trim() || 'Unknown', 'Unknown'),
   ])
   const openCodeAgents = discoverOpenCodeAgents() // files only: no command is run
-  return { profiles, openCode, openCodeAgents, fetchedAt: new Date().toISOString() }
+  const agentNames = await namesStore.load() // local aliases only: never a Hermes or OpenCode change
+  return { profiles, openCode, openCodeAgents, agentNames, fetchedAt: new Date().toISOString() }
 }
 
 /** Board slugs passed to `hermes kanban --board`: Hermes' own slug rule, never an option. */
@@ -828,14 +834,14 @@ export async function collectAgentActivity(profiles: readonly string[], run: Run
 // Office
 
 /** One office station per agent: every Hermes profile, plus every agent defined in the OpenCode install. */
-interface AgentSpec { id: string; role: string; profile?: string; gateway?: GatewayState; aliases: string[] }
+interface AgentSpec { id: string; role: string; profile?: string; gateway?: GatewayState; aliases: string[]; displayName?: string }
 
 export function agentRoster(runtime: RuntimeSnapshot): AgentSpec[] {
   const profiles = runtime.profiles.availability === 'available' ? runtime.profiles.data : []
-  const agents: AgentSpec[] = profiles.filter((profile) => PROFILE_NAME.test(profile.name)).map((profile) => ({ id: profile.name, role: 'Hermes profile', profile: profile.name, gateway: profile.gateway, aliases: [profile.name.toLowerCase()] }))
+  const agents: AgentSpec[] = profiles.filter((profile) => PROFILE_NAME.test(profile.name)).map((profile) => ({ id: profile.name, role: 'Hermes profile', profile: profile.name, gateway: profile.gateway, aliases: [profile.name.toLowerCase()], displayName: runtime.agentNames?.[profile.name] }))
   const openCodeAgents = runtime.openCodeAgents ?? []
-  if (openCodeAgents.length) agents.push(...openCodeAgents.map((agent) => ({ id: agent.id, role: agent.role || agent.id, aliases: [agent.id, agent.id.toLowerCase()] })))
-  else if (runtime.openCode.availability === 'available' && !agents.some((agent) => agent.id === 'opencode')) agents.push({ id: 'opencode', role: 'OpenCode', aliases: ['opencode', 'open-code'] })
+  if (openCodeAgents.length) agents.push(...openCodeAgents.map((agent) => ({ id: agent.id, role: agent.role || agent.id, aliases: [agent.id, agent.id.toLowerCase()], displayName: runtime.agentNames?.[agent.id] })))
+  else if (runtime.openCode.availability === 'available' && !agents.some((agent) => agent.id === 'opencode')) agents.push({ id: 'opencode', role: 'OpenCode', aliases: ['opencode', 'open-code'], displayName: runtime.agentNames?.['opencode'] })
   return agents
 }
 
@@ -954,6 +960,7 @@ export function buildOfficeSnapshot(runtime: RuntimeSnapshot, board: TaskBoardSn
     return {
       id: agent.id,
       name: agent.id,
+      ...(agent.displayName ? { displayName: agent.displayName } : {}),
       role: clipRole(agent.role),
       ...roomForState(state, index),
       seat: index + 1,
@@ -1013,6 +1020,9 @@ function cachedSource<T>(collect: () => Promise<T>, ttl = CACHE_MS) {
   return Object.assign(get, { clear: () => { entry = undefined } })
 }
 
+// One shared store: its cache mirrors the file's stat, so edits from this server, the CLI
+// or another Space are all picked up.
+const namesStore = new AgentNamesStore()
 const runtimeSource = cachedSource(() => collectSnapshot())
 const taskBoardSource = cachedSource(() => collectTaskBoard())
 const calendarSource = cachedSource(() => collectCalendar())
@@ -1032,6 +1042,8 @@ const agentActivitySource = cachedSource(async () => {
 }, 15_000)
 
 export function getSnapshot(now = Date.now()): Promise<RuntimeSnapshot> { return runtimeSource(now) }
+/** The current aliases without a full snapshot; also read by the settings page. */
+export function getAgentNames(): Promise<AgentNames> { return namesStore.load() }
 export function clearSnapshotCache(): void { runtimeSource.clear() }
 export function getTaskBoard(now = Date.now()): Promise<TaskBoardSnapshot> { return taskBoardSource(now) }
 export function getCalendar(now = Date.now()): Promise<CalendarSnapshot> { return calendarSource(now) }
