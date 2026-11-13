@@ -275,6 +275,7 @@ const FLOORS: { floor: Floor; label: string; title: string }[] = [
 ]
 const FLOOR_KEY = 'mc.officeFloor'
 const SLEEP_KEY = 'mc.officeSleep'
+const HIDE_LABELS_KEY = 'mc.officeHideLabels'
 
 /** An on/off preference kept per browser. */
 function useStoredFlag(key: string): [boolean, (value: boolean) => void] {
@@ -304,6 +305,7 @@ export default function Office3D({ stations, onSelect }: { stations: OfficeStati
   const theme = useThemeName()
   const [floor, setFloor] = useFloor()
   const [sleepMode, setSleepMode] = useStoredFlag(SLEEP_KEY)
+  const [hideLabels, setHideLabels] = useStoredFlag(HIDE_LABELS_KEY)
   const now = useClock(2000)
   // One unlabeled desk per agent (hot desking); the building is sized for the crew.
   const layout = useMemo(() => createLayout(stations.length), [stations.length])
@@ -329,8 +331,9 @@ export default function Office3D({ stations, onSelect }: { stations: OfficeStati
       <LabelProjector anchors={anchors} labels={labels}/>
       <Controls key={layout.deskCount} ref={view} panMode={panMode} keyTarget={keyTarget} layout={layout} elevation={floor === 2 ? FLOOR_HEIGHT : 0}/>
     </Canvas>
-    <div className="office-3d-labels">
-      {stations.map((station) => {
+    {!hideLabels && (
+      <div className="office-3d-labels">
+        {stations.map((station) => {
         const badge = officeStateBadge(station.state)
         const busy = ['Working', 'Reviewing', 'Collaborating'].includes(station.state)
         const idle = wandering(station)
@@ -340,7 +343,8 @@ export default function Office3D({ stations, onSelect }: { stations: OfficeStati
           <span className="agent-tag-row"><span className="pixel-station-name">{station.privacy === 'locked' ? '🔒 ' : ''}{displayName(station.id, station.displayName)}</span><span className={`badge ${badge.tone}`}>{station.state === 'Idle' ? 'Idle' : station.state}</span><span className="agent-tag-role">{station.role}</span></span>
         </button>
       })}
-    </div>
+      </div>
+    )}
     <div className="office-3d-floors" role="group" aria-label="Floors">
       {FLOORS.map((item) => <button key={item.floor} type="button" className={floor === item.floor ? 'active' : ''} aria-pressed={floor === item.floor} onClick={() => setFloor(item.floor)} title={`${item.title} (Page ${item.floor === 2 ? 'Up' : 'Down'})`}>
         <b>{item.floor}</b><span>{item.label}</span><small>{floorCount(item.floor)}</small>
@@ -349,6 +353,7 @@ export default function Office3D({ stations, onSelect }: { stations: OfficeStati
     <div className="office-3d-tools">
       <button type="button" className={sleepMode ? 'active sleep' : ''} aria-pressed={sleepMode} onClick={() => { setSleepMode(!sleepMode); if (!sleepMode && idleSeats.length > 0) setFloor(2) }} title="Send every idle agent to bed on lantai 2">💤 Tidur</button>
       <button type="button" className={panMode ? 'active' : ''} aria-pressed={panMode} onClick={() => setPanMode((value) => !value)} title="Drag moves the view instead of rotating it">✥ Geser</button>
+      <button type="button" className={hideLabels ? 'active' : ''} aria-pressed={hideLabels} onClick={() => setHideLabels(!hideLabels)} title="Tampilkan atau sembunyikan label agen di 3D">👁️ Labels</button>
       <button type="button" onClick={() => view.current?.reset()} title="Back to the starting view">↺ Reset view</button>
     </div>
   </div>
