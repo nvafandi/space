@@ -209,7 +209,7 @@ describe('Office snapshot', () => {
 
     expect(office.stations[0]).toMatchObject({ name: 'default', state: 'Working', currentTask: 'Active lead work', recentActivity: 'Not Available' })
     expect(office.stations.some((station) => station.state === 'Offline')).toBe(false)
-    expect(office.stations[2]).toMatchObject({ name: 'opencode', state: 'Unknown' })
+    expect(office.stations[2]).toMatchObject({ name: 'opencode', state: 'Idle' })
   })
 
   it('does not turn unassigned work, generic sessions, gateway Running, or a version into active state', () => {

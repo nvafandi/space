@@ -92,6 +92,21 @@ describe('office roster', () => {
   })
 
   describe('agent display names', () => {
+    it('marks a task-less, non-collaborating OpenCode agent Idle when runtime and board are fresh even without an activity source', () => {
+      // OpenCode has no activity source: freshActivity is false, so the Idle fallback must not
+      // depend on it. Unknown stays reserved for stale or unavailable inputs.
+      const staleActivity = { sessions: { availability: 'unavailable' as const, data: [] }, fetchedAt: '2020-01-01T00:00:00.000Z' }
+      const office = buildOfficeSnapshot({
+        ...runtime,
+        openCodeAgents: [{ id: 'sobirin', role: 'security-auditor' }],
+        agentNames: { sobirin: 'Sobirin' },
+      }, emptyBoard, staleActivity, { now: at })
+
+      expect(office.stations).toMatchObject([{ id: 'sobirin', name: 'sobirin', displayName: 'Sobirin', state: 'Idle' }])
+      expect(office.summary.idle).toBe(1)
+      expect(office.summary.unknown).toBe(0)
+    })
+
     it('shows the alias instead of the id, without changing the id', () => {
       const specs = agentRoster({
         ...runtime,
