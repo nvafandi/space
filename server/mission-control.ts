@@ -944,9 +944,10 @@ export function buildOfficeSnapshot(runtime: RuntimeSnapshot, board: TaskBoardSn
     const direct: OfficeState | undefined = overlay ?? (live.state !== 'Unknown' ? (taskWorkState !== 'Unknown' ? taskWorkState : live.state) : undefined)
     // OpenCode has no activity source, so `freshActivity` is always false there. Idle is a
     // managed placement decision, not an activity signal: a task-less agent that is not
-    // collaborating, with fresh runtime/board inputs and a known live state, is Idle.
+    // collaborating, with fresh runtime input and a known live state, is Idle. Board
+    // unavailability is a valid empty state, not stale data, so it no longer blocks Idle.
     // Unknown stays reserved for stale or unavailable inputs.
-    const state: OfficeState = direct ?? (taskWorkState !== 'Unknown' ? taskWorkState : collaboration !== 'Unknown' ? collaboration : freshRuntime && freshBoard && liveKnown ? 'Idle' : 'Unknown')
+    const state: OfficeState = direct ?? (taskWorkState !== 'Unknown' ? taskWorkState : collaboration !== 'Unknown' ? collaboration : freshRuntime && liveKnown ? 'Idle' : 'Unknown')
     const currentTask = board.tasks.availability === 'unavailable' ? 'Not Available' : task?.title ?? 'No attributed task'
     const activityLabel = state === 'Working' && taskWorkState === 'Working' && task ? `Kanban: ${task.title}`
       : state === 'Reviewing' && task ? `Reviewing: ${task.title}`
